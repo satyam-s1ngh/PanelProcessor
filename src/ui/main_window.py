@@ -1,3 +1,4 @@
+import os
 from PySide6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -46,8 +47,26 @@ class MainWindow(QMainWindow):
             "Select Input Folder"
         )
 
-        if folder:
-            self.left_panel.input_path.setText(folder)
+        if not folder:
+            return
+
+        self.left_panel.input_path.setText(folder)
+
+        supported = (
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+        )
+
+        images = [
+            file for file in os.listdir(folder)
+            if file.lower().endswith(supported)
+        ]
+
+        if images:
+            first_image = os.path.join(folder, images[0])
+            self.preview_panel.show_image(first_image)
 
 
     def select_output_folder(self):
