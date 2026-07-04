@@ -1,4 +1,6 @@
 import os
+from core.settings import Settings
+from ui.settings_panel import SettingsPanel
 from PySide6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -12,7 +14,8 @@ from ui.preview_panel import PreviewPanel
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-
+        
+        self.settings = Settings()
         self.images = []
         self.current_index = 0
 
@@ -31,12 +34,12 @@ class MainWindow(QMainWindow):
 
         # Temporary center panel (Settings placeholder)
 
-        center_panel = QWidget()
+        self.settings_panel = SettingsPanel()
 
         # Main layout
 
         main_layout.addWidget(self.left_panel, 1)
-        main_layout.addWidget(center_panel, 2)
+        main_layout.addWidget(self.settings_panel, 2)
         main_layout.addWidget(self.preview_panel, 2)
 
         # Connect buttons
@@ -50,6 +53,9 @@ class MainWindow(QMainWindow):
             self.next_image
         )
         self.left_panel.output_button.clicked.connect(self.select_output_folder)
+
+        self.settings_panel.border_spinbox.valueChanged.connect(self.update_border_value)
+        
 
     def select_input_folder(self):
         folder = QFileDialog.getExistingDirectory(
@@ -117,3 +123,9 @@ class MainWindow(QMainWindow):
         if self.current_index < len(self.images) - 1:
             self.current_index += 1
             self.update_preview()
+
+    def update_border_value(self, value):
+        self.settings.border_thickness = value
+        self.preview_panel.canvas.set_border_thickness(
+            self.settings.border_thickness
+        )

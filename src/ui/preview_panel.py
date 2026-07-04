@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
+
+from ui.image_canvas import ImageCanvas
 from ui.navigation_bar import NavigationBar
 
 
@@ -12,31 +13,19 @@ class PreviewPanel(QFrame):
 
         layout = QVBoxLayout(self)
 
+        # Title
         title = QLabel("🖼 Live Preview")
         title.setAlignment(Qt.AlignCenter)
-
-        self.image_label = QLabel("No Image Loaded")
-        self.image_label.setAlignment(Qt.AlignCenter)
-        self.image_label.setMinimumSize(600, 600)
-
         layout.addWidget(title)
-        layout.addWidget(self.image_label)
 
+        # Image Canvas
+        self.canvas = ImageCanvas()
+        layout.addWidget(self.canvas)
+
+        # Navigation Bar
         self.navigation = NavigationBar()
         layout.addWidget(self.navigation)
 
     def show_image(self, image_path):
-        pixmap = QPixmap(image_path)
-
-        if pixmap.isNull():
-            self.image_label.setText("Failed to load image")
-            return
-
-        scaled = pixmap.scaled(
-            self.image_label.size(),
-            Qt.KeepAspectRatio,
-            Qt.SmoothTransformation,
-        )
-
-        self.image_label.setPixmap(scaled)
+        self.canvas.set_image(image_path)
         
