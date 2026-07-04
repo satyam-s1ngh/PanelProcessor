@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QFrame,
+    QFileDialog,
 )
 
 
@@ -25,15 +26,36 @@ class MainWindow(QMainWindow):
 
         left_panel = QFrame()
         left_panel.setFrameShape(QFrame.StyledPanel)
+
         left_layout = QVBoxLayout(left_panel)
 
-        left_layout.addWidget(QLabel("Input Folder"))
-        left_layout.addWidget(QPushButton("Browse"))
+        # Input Folder
+        input_title = QLabel("📁 Input Folder")
 
-        left_layout.addSpacing(20)
+        self.input_path = QLabel("No folder selected")
+        self.input_path.setWordWrap(True)
 
-        left_layout.addWidget(QLabel("Output Folder"))
-        left_layout.addWidget(QPushButton("Browse"))
+        input_button = QPushButton("Browse")
+        input_button.clicked.connect(self.select_input_folder)
+
+        # Output Folder
+        output_title = QLabel("📁 Output Folder")
+
+        self.output_path = QLabel("No folder selected")
+        self.output_path.setWordWrap(True)
+
+        output_button = QPushButton("Browse")
+        output_button.clicked.connect(self.select_output_folder)
+
+        left_layout.addWidget(input_title)
+        left_layout.addWidget(self.input_path)
+        left_layout.addWidget(input_button)
+
+        left_layout.addSpacing(25)
+
+        left_layout.addWidget(output_title)
+        left_layout.addWidget(self.output_path)
+        left_layout.addWidget(output_button)
 
         left_layout.addStretch()
 
@@ -66,3 +88,22 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(left_panel, 1)
         main_layout.addWidget(center_panel, 2)
         main_layout.addWidget(right_panel, 2)
+
+    def select_input_folder(self):
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Select Input Folder"
+        )
+
+        if folder:
+            self.input_path.setText(folder)
+
+
+    def select_output_folder(self):
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Select Output Folder"
+        )
+
+        if folder:
+            self.output_path.setText(folder)
