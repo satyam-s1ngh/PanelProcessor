@@ -13,6 +13,9 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        self.images = []
+        self.current_index = 0
+
         self.setWindowTitle("Panel Processor")
         self.resize(1400, 800)
 
@@ -39,6 +42,13 @@ class MainWindow(QMainWindow):
         # Connect buttons
 
         self.left_panel.input_button.clicked.connect(self.select_input_folder)
+        self.preview_panel.navigation.previous_button.clicked.connect(
+            self.previous_image
+            )
+
+        self.preview_panel.navigation.next_button.clicked.connect(
+            self.next_image
+        )
         self.left_panel.output_button.clicked.connect(self.select_output_folder)
 
     def select_input_folder(self):
@@ -59,14 +69,16 @@ class MainWindow(QMainWindow):
             ".webp",
         )
 
-        images = [
-            file for file in os.listdir(folder)
-            if file.lower().endswith(supported)
-        ]
+        self.images = []
 
-        if images:
-            first_image = os.path.join(folder, images[0])
-            self.preview_panel.show_image(first_image)
+        for file in sorted(os.listdir(folder)):
+            if file.lower().endswith(supported):
+                self.images.append(os.path.join(folder, file))
+
+        self.current_index = 0
+
+        if self.images:
+            self.update_preview()
 
 
     def select_output_folder(self):
@@ -77,3 +89,31 @@ class MainWindow(QMainWindow):
 
         if folder:
             self.left_panel.output_path.setText(folder)
+
+    def update_preview(self):
+        if not self.images:
+            return
+
+        self.preview_panel.show_image(
+            self.images[self.current_index]
+        )
+
+        self.preview_panel.navigation.counter.setText(
+            f"{self.current_index + 1} / {len(self.images)}"
+        )
+
+    def previous_image(self):
+        if not self.images:
+            return
+
+        if self.current_index > 0:
+            self.current_index -= 1
+            self.update_preview()
+
+    def next_image(self):
+        if not self.images:
+            return
+
+        if self.current_index < len(self.images) - 1:
+            self.current_index += 1
+            self.update_preview()

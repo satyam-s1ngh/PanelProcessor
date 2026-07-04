@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
+from ui.navigation_bar import NavigationBar
 
 
 class PreviewPanel(QFrame):
@@ -21,6 +22,9 @@ class PreviewPanel(QFrame):
         layout.addWidget(title)
         layout.addWidget(self.image_label)
 
+        self.navigation = NavigationBar()
+        layout.addWidget(self.navigation)
+
     def show_image(self, image_path):
         pixmap = QPixmap(image_path)
 
@@ -35,3 +39,4 @@ class PreviewPanel(QFrame):
         )
 
         self.image_label.setPixmap(scaled)
+        
