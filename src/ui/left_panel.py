@@ -4,6 +4,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
 )
+from core.file_manager import FileManager
+from PySide6.QtWidgets import QProgressBar
 
 
 class LeftPanel(QFrame):
@@ -34,8 +36,15 @@ class LeftPanel(QFrame):
         self.output_path.setWordWrap(True)
 
         self.output_button = QPushButton("Browse")
-
         layout.addWidget(self.output_path)
         layout.addWidget(self.output_button)
+
+        self.progress = QProgressBar()
+        self.progress.setValue(0)
+
+        layout.addWidget(self.progress)
+
+        self.process_button = QPushButton("▶ Process Images")
+        layout.addWidget(self.process_button)
 
         layout.addStretch()

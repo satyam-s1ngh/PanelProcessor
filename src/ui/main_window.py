@@ -1,4 +1,8 @@
 import os
+from PySide6.QtWidgets import QColorDialog
+from pathlib import Path
+from core.pipeline import Pipeline
+from core.file_manager import FileManager
 from core.settings import Settings
 from ui.settings_panel import SettingsPanel
 from PySide6.QtWidgets import (
@@ -6,6 +10,8 @@ from PySide6.QtWidgets import (
     QWidget,
     QHBoxLayout,
     QFileDialog,
+    QApplication,
+    QMessageBox,
 )
 
 from ui.left_panel import LeftPanel
@@ -31,6 +37,7 @@ class MainWindow(QMainWindow):
 
         self.left_panel = LeftPanel()
         self.preview_panel = PreviewPanel()
+        self.preview_panel.canvas.set_settings(self.settings)
 
         # Temporary center panel (Settings placeholder)
 
@@ -55,8 +62,38 @@ class MainWindow(QMainWindow):
         self.left_panel.output_button.clicked.connect(self.select_output_folder)
 
         self.settings_panel.border_spinbox.valueChanged.connect(self.update_border_value)
-        
+        self.left_panel.process_button.clicked.connect(
+            self.process_images
+        )
 
+        self.settings_panel.custom_color_button.clicked.connect(
+            self.choose_border_color
+        )
+
+        self.settings_panel.corner_radius.valueChanged.connect(
+        self.update_corner_radius
+        )
+
+        self.settings_panel.shadow_checkbox.toggled.connect(
+        self.update_shadow
+        )
+
+        self.settings_panel.shadow_blur.valueChanged.connect(
+            self.update_shadow_blur
+        )
+
+        self.settings_panel.shadow_offset_x.valueChanged.connect(
+            self.update_shadow_offset_x
+        )
+
+        self.settings_panel.shadow_offset_y.valueChanged.connect(
+            self.update_shadow_offset_y
+        )
+
+        self.settings_panel.shadow_opacity.valueChanged.connect(
+            self.update_shadow_opacity
+        )
+                        
     def select_input_folder(self):
         folder = QFileDialog.getExistingDirectory(
             self,
@@ -68,24 +105,12 @@ class MainWindow(QMainWindow):
 
         self.left_panel.input_path.setText(folder)
 
-        supported = (
-            ".png",
-            ".jpg",
-            ".jpeg",
-            ".webp",
-        )
-
-        self.images = []
-
-        for file in sorted(os.listdir(folder)):
-            if file.lower().endswith(supported):
-                self.images.append(os.path.join(folder, file))
+        self.images = FileManager.get_images(folder)
 
         self.current_index = 0
 
         if self.images:
             self.update_preview()
-
 
     def select_output_folder(self):
         folder = QFileDialog.getExistingDirectory(
@@ -101,7 +126,7 @@ class MainWindow(QMainWindow):
             return
 
         self.preview_panel.show_image(
-            self.images[self.current_index]
+            str(self.images[self.current_index])
         )
 
         self.preview_panel.navigation.counter.setText(
@@ -126,6 +151,91 @@ class MainWindow(QMainWindow):
 
     def update_border_value(self, value):
         self.settings.border_thickness = value
-        self.preview_panel.canvas.set_border_thickness(
-            self.settings.border_thickness
+
+        self.settings_panel.border_color.currentTextChanged.connect(
+        self.update_border_color
         )
+
+        self.preview_panel.canvas.set_settings(self.settings)
+        self.preview_panel.canvas.update()
+
+    def update_border_color(self, color):
+        self.settings.border_color = color.lower()
+        self.preview_panel.canvas.update()
+
+    def process_images(self):
+        input_folder = self.left_panel.input_path.text()
+        output_folder = self.left_panel.output_path.text()
+
+        if not input_folder or not output_folder:
+            return
+
+        total = len(self.images)
+
+        self.left_panel.process_button.setEnabled(False)
+
+        for index, image_path in enumerate(self.images, start=1):
+            output_path = Path(output_folder) / image_path.name
+
+            Pipeline.process_one(
+                image_path,
+                output_path,
+                self.settings,
+            )
+
+            progress = int(index / total * 100)
+
+            self.left_panel.progress.setValue(progress)
+
+            QApplication.processEvents()
+
+        from PySide6.QtWidgets import QMessageBox
+
+        self.left_panel.process_button.setEnabled(True)
+
+        QMessageBox.information(
+            self,
+            "Done",
+            "Processing Complete!"
+        )
+
+    def choose_border_color(self):
+        color = QColorDialog.getColor()
+
+        if not color.isValid():
+            return
+
+        self.settings.border_color = color.name()
+        self.settings_panel.border_color.setCurrentText("Custom")
+        self.preview_panel.canvas.update()
+
+    def update_border_color(self, color):
+        if color == "Custom":
+            return
+
+        self.settings.border_color = color.lower()
+        self.preview_panel.canvas.update()
+
+    def update_corner_radius(self, value):
+        self.settings.corner_radius = value
+        self.preview_panel.canvas.update()
+    
+    def update_shadow(self, enabled):
+        self.settings.shadow_enabled = enabled
+        self.preview_panel.canvas.update()
+
+    def update_shadow_blur(self, value):
+        self.settings.shadow_blur = value
+        self.preview_panel.canvas.update()
+
+    def update_shadow_offset_x(self, value):
+        self.settings.shadow_offset_x = value
+        self.preview_panel.canvas.update()
+
+    def update_shadow_offset_y(self, value):
+        self.settings.shadow_offset_y = value
+        self.preview_panel.canvas.update()
+
+    def update_shadow_opacity(self, value):
+        self.settings.shadow_opacity = value
+        self.preview_panel.canvas.update()
