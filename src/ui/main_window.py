@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QColorDialog,
     QInputDialog,
+    QScrollArea,
 )
 
 from PySide6.QtGui import QColor
@@ -49,8 +50,12 @@ class MainWindow(QMainWindow):
 
         self.preview_panel.canvas.set_settings(self.settings)
 
+        self.settings_scroll = QScrollArea()
+        self.settings_scroll.setWidgetResizable(True)
+        self.settings_scroll.setWidget(self.settings_panel)
+
         main_layout.addWidget(self.left_panel, 1)
-        main_layout.addWidget(self.settings_panel, 2)
+        main_layout.addWidget(self.settings_scroll, 2)
         main_layout.addWidget(self.preview_panel, 2)
 
         self.connect_signals()
