@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QMessageBox,
     QColorDialog,
+    QInputDialog,
 )
 
 from PySide6.QtGui import QColor
@@ -15,6 +16,7 @@ from PySide6.QtGui import QColor
 from core.pipeline import Pipeline
 from core.file_manager import FileManager
 from core.settings import Settings
+from core.preset_manager import PresetManager
 
 from ui.left_panel import LeftPanel
 from ui.preview_panel import PreviewPanel
@@ -27,6 +29,8 @@ class MainWindow(QMainWindow):
 
         self.settings = Settings()
         self.settings.load()
+
+        self.preset_manager = PresetManager()
 
         self.images = []
         self.current_index = 0
@@ -51,6 +55,7 @@ class MainWindow(QMainWindow):
 
         self.connect_signals()
         self.apply_settings_to_ui()
+        self.refresh_preset_combo()
 
     def connect_signals(self):
         self.left_panel.input_button.clicked.connect(
@@ -129,20 +134,20 @@ class MainWindow(QMainWindow):
             self.reset_settings
         )
 
-        self.settings_panel.preset_clean_button.clicked.connect(
-            self.apply_clean_border_preset
+        self.settings_panel.apply_preset_button.clicked.connect(
+            self.apply_selected_preset
         )
 
-        self.settings_panel.preset_shadow_button.clicked.connect(
-            self.apply_soft_shadow_preset
+        self.settings_panel.save_preset_button.clicked.connect(
+            self.save_new_preset
         )
 
-        self.settings_panel.preset_glow_button.clicked.connect(
-            self.apply_glow_preset
+        self.settings_panel.update_preset_button.clicked.connect(
+            self.update_selected_preset
         )
 
-        self.settings_panel.preset_pop_button.clicked.connect(
-            self.apply_thumbnail_pop_preset
+        self.settings_panel.delete_preset_button.clicked.connect(
+            self.delete_selected_preset
         )
 
     def select_input_folder(self):
@@ -523,69 +528,134 @@ class MainWindow(QMainWindow):
 
         return output_path
     
-    def apply_clean_border_preset(self):
-        self.settings.border_thickness = 4.0
-        self.settings.border_color = "#000000"
-        self.settings.corner_radius = 0
+    def refresh_preset_combo(self):
+        combo = self.settings_panel.preset_combo
 
-        self.settings.shadow_enabled = False
+        current_text = combo.currentText()
 
-        self.settings.background_enabled = False
+        combo.blockSignals(True)
+        combo.clear()
 
-        self.apply_settings_to_ui()
-        self.settings.save()
+        preset_names = self.preset_manager.get_names()
 
+        if preset_names:
+            combo.addItems(preset_names)
 
-    def apply_soft_shadow_preset(self):
-        self.settings.border_thickness = 0.0
-        self.settings.border_color = "#000000"
-        self.settings.corner_radius = 0
+            if current_text in preset_names:
+                combo.setCurrentText(current_text)
 
-        self.settings.shadow_enabled = True
-        self.settings.shadow_blur = 18
-        self.settings.shadow_opacity = 110
-        self.settings.shadow_offset_x = 0
-        self.settings.shadow_offset_y = 6
-        self.settings.shadow_color = "#000000"
-
-        self.settings.background_enabled = False
-
-        self.apply_settings_to_ui()
-        self.settings.save()
+        combo.blockSignals(False)
 
 
-    def apply_glow_preset(self):
-        self.settings.border_thickness = 0.0
-        self.settings.border_color = "#000000"
-        self.settings.corner_radius = 0
+    def apply_settings_data(self, data):
+        if not data:
+            return
 
-        self.settings.shadow_enabled = True
-        self.settings.shadow_blur = 25
-        self.settings.shadow_opacity = 150
-        self.settings.shadow_offset_x = 0
-        self.settings.shadow_offset_y = 0
-        self.settings.shadow_color = "#ffffff"
+        for key, value in data.items():
+            if hasattr(self.settings, key):
+                setattr(self.settings, key, value)
 
-        self.settings.background_enabled = True
-        self.settings.background_color = "#000000"
+        self.preview_panel.canvas.set_settings(self.settings)
 
         self.apply_settings_to_ui()
         self.settings.save()
+        self.refresh_preview()
 
 
-    def apply_thumbnail_pop_preset(self):
-        self.settings.border_thickness = 6.0
-        self.settings.border_color = "#ffffff"
-        self.settings.corner_radius = 8
+    def apply_selected_preset(self):
+        name = self.settings_panel.preset_combo.currentText()
 
-        self.settings.shadow_enabled = True
-        self.settings.shadow_blur = 20
-        self.settings.shadow_opacity = 130
-        self.settings.shadow_offset_x = 0
-        self.settings.shadow_offset_y = 5
-        self.settings.shadow_color = "#000000"
+        if not name:
+            QMessageBox.warning(
+                self,
+                "No Preset",
+                "Please select a preset first.",
+            )
+            return
 
-        self.settings.background_enabled = False
+        preset_data = self.preset_manager.get_preset(name)
 
-        self.apply_settings_to_ui()
-        self.settings.save()
+        if not preset_data:
+            QMessageBox.warning(
+                self,
+                "Preset Not Found",
+                "This preset could not be found.",
+            )
+            return
+
+        self.apply_settings_data(preset_data)
+
+
+    def save_new_preset(self):
+        name, ok = QInputDialog.getText(
+            self,
+            "Save Preset",
+            "Enter preset name:",
+        )
+
+        if not ok or not name.strip():
+            return
+
+        name = name.strip()
+
+        self.preset_manager.save_preset(
+            name,
+            self.settings.to_dict(),
+        )
+
+        self.refresh_preset_combo()
+        self.settings_panel.preset_combo.setCurrentText(name)
+
+
+    def update_selected_preset(self):
+        name = self.settings_panel.preset_combo.currentText()
+
+        if not name:
+            QMessageBox.warning(
+                self,
+                "No Preset",
+                "Please select a preset to update.",
+            )
+            return
+
+        confirm = QMessageBox.question(
+            self,
+            "Update Preset",
+            f"Update preset '{name}' with current settings?",
+        )
+
+        if confirm != QMessageBox.Yes:
+            return
+
+        self.preset_manager.save_preset(
+            name,
+            self.settings.to_dict(),
+        )
+
+        self.refresh_preset_combo()
+        self.settings_panel.preset_combo.setCurrentText(name)
+
+
+    def delete_selected_preset(self):
+        name = self.settings_panel.preset_combo.currentText()
+
+        if not name:
+            QMessageBox.warning(
+                self,
+                "No Preset",
+                "Please select a preset to delete.",
+            )
+            return
+
+        confirm = QMessageBox.question(
+            self,
+            "Delete Preset",
+            f"Delete preset '{name}'?",
+        )
+
+        if confirm != QMessageBox.Yes:
+            return
+
+        self.preset_manager.delete_preset(name)
+
+        self.refresh_preset_combo()

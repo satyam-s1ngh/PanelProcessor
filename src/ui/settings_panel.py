@@ -226,14 +226,21 @@ class SettingsPanel(QFrame):
         self.reset_button = QPushButton("Reset Settings")
         layout.addWidget(self.reset_button)
 
-        layout.addWidget(QLabel("Presets"))
-        self.preset_clean_button = QPushButton("Preset: Clean Border")
-        layout.addWidget(self.preset_clean_button)
-        self.preset_shadow_button = QPushButton("Preset: Soft Shadow")
-        layout.addWidget(self.preset_shadow_button)
-        self.preset_glow_button = QPushButton("Preset: Glow")
-        layout.addWidget(self.preset_glow_button)
-        self.preset_pop_button = QPushButton("Preset: Thumbnail Pop")
-        layout.addWidget(self.preset_pop_button)
+        layout.addWidget(QLabel("Custom Presets"))
 
+        self.preset_combo = QComboBox()
+        layout.addWidget(self.preset_combo)
+
+        self.apply_preset_button = QPushButton("Apply Preset")
+        layout.addWidget(self.apply_preset_button)
+
+        self.save_preset_button = QPushButton("Save New Preset")
+        layout.addWidget(self.save_preset_button)
+
+        self.update_preset_button = QPushButton("Update Selected Preset")
+        layout.addWidget(self.update_preset_button)
+
+        self.delete_preset_button = QPushButton("Delete Selected Preset")
+        layout.addWidget(self.delete_preset_button)
+        
         layout.addStretch()
