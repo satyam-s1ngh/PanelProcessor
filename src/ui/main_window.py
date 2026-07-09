@@ -1,5 +1,6 @@
 from pathlib import Path
 import time
+import copy
 
 from PySide6.QtWidgets import (
     QMainWindow,
@@ -37,6 +38,9 @@ class MainWindow(QMainWindow):
         self.images = []
         self.current_index = 0
         self.cancel_processing = False
+        self.undo_stack = []
+        self.redo_stack = []
+        self.is_applying_history = False
 
         self.setWindowTitle("Panel Processor")
         self.resize(1400, 800)
@@ -64,6 +68,8 @@ class MainWindow(QMainWindow):
         self.apply_settings_to_ui()
         self.refresh_preset_combo()
         self.restore_last_folders()
+        self.apply_theme()
+        self.update_history_buttons()
 
     def connect_signals(self):
         self.left_panel.input_button.clicked.connect(
@@ -166,6 +172,14 @@ class MainWindow(QMainWindow):
             self.request_cancel_processing
         )
 
+        self.settings_panel.undo_button.clicked.connect(
+            self.undo_settings
+        )
+
+        self.settings_panel.redo_button.clicked.connect(
+            self.redo_settings
+        )
+
     def select_input_folder(self):
         current_folder = self.left_panel.input_path.text()
 
@@ -235,6 +249,7 @@ class MainWindow(QMainWindow):
             self.update_preview()
 
     def update_border_value(self, value):
+        self.push_undo_state()
         self.settings.border_thickness = float(value)
         self.refresh_preview()
 
@@ -242,6 +257,7 @@ class MainWindow(QMainWindow):
         if color == "Custom":
             return
 
+        self.push_undo_state()
         self.settings.border_color = color.lower()
         self.refresh_preview()
 
@@ -251,6 +267,7 @@ class MainWindow(QMainWindow):
         if not color.isValid():
             return
 
+        self.push_undo_state()
         self.settings.border_color = color.name()
 
         self.settings_panel.border_color.blockSignals(True)
@@ -266,10 +283,12 @@ class MainWindow(QMainWindow):
         self.refresh_preview()
 
     def update_corner_radius(self, value):
+        self.push_undo_state()
         self.settings.corner_radius = int(value)
         self.refresh_preview()
 
     def update_shadow(self, enabled):
+        self.push_undo_state()
         self.settings.shadow_enabled = bool(enabled)
         self.refresh_preview()
 
@@ -279,6 +298,7 @@ class MainWindow(QMainWindow):
         if not color.isValid():
             return
 
+        self.push_undo_state()
         self.settings.shadow_color = color.name()
 
         self.update_color_button(
@@ -290,22 +310,27 @@ class MainWindow(QMainWindow):
         self.refresh_preview()
 
     def update_shadow_blur(self, value):
+        self.push_undo_state()
         self.settings.shadow_blur = int(value)
         self.refresh_preview()
 
     def update_shadow_offset_x(self, value):
+        self.push_undo_state()
         self.settings.shadow_offset_x = int(value)
         self.refresh_preview()
 
     def update_shadow_offset_y(self, value):
+        self.push_undo_state()
         self.settings.shadow_offset_y = int(value)
         self.refresh_preview()
 
     def update_shadow_opacity(self, value):
+        self.push_undo_state()
         self.settings.shadow_opacity = int(value)
         self.refresh_preview()
 
     def update_background_enabled(self, enabled):
+        self.push_undo_state()
         self.settings.background_enabled = bool(enabled)
         self.refresh_preview()
 
@@ -315,6 +340,7 @@ class MainWindow(QMainWindow):
         if not color.isValid():
             return
 
+        self.push_undo_state()
         self.settings.background_color = color.name()
 
         self.update_color_button(
@@ -629,6 +655,7 @@ class MainWindow(QMainWindow):
         event.accept()
     
     def reset_settings(self):
+        self.push_undo_state()
         self.settings = Settings()
 
         self.preview_panel.canvas.set_settings(self.settings)
@@ -690,6 +717,7 @@ class MainWindow(QMainWindow):
         self.preview_panel.canvas.set_settings(self.settings)
 
         self.apply_settings_to_ui()
+        self.push_undo_state()
         self.settings.save()
         self.refresh_preview()
 
@@ -892,3 +920,174 @@ class MainWindow(QMainWindow):
         extension = image_path.suffix
 
         return output_folder / f"{base_name}_processed{extension}"
+    
+    def snapshot_settings(self):
+        return copy.deepcopy(
+            self.settings.to_dict()
+        )
+
+    def push_undo_state(self):
+        if self.is_applying_history:
+            return
+
+        self.undo_stack.append(
+            self.snapshot_settings()
+        )
+
+        if len(self.undo_stack) > 50:
+            self.undo_stack.pop(0)
+
+        self.redo_stack.clear()
+        self.update_history_buttons()
+
+    def apply_settings_snapshot(self, snapshot):
+        if not snapshot:
+            return
+
+        self.is_applying_history = True
+
+        try:
+            for key, value in snapshot.items():
+                if hasattr(self.settings, key):
+                    setattr(
+                        self.settings,
+                        key,
+                        value,
+                    )
+
+            self.preview_panel.canvas.set_settings(
+                self.settings
+            )
+
+            self.apply_settings_to_ui()
+            self.settings.save()
+            self.refresh_preview()
+
+        finally:
+            self.is_applying_history = False
+            self.update_history_buttons()
+
+    def undo_settings(self):
+        if not self.undo_stack:
+            return
+
+        current_snapshot = self.snapshot_settings()
+        previous_snapshot = self.undo_stack.pop()
+
+        self.redo_stack.append(current_snapshot)
+
+        self.apply_settings_snapshot(previous_snapshot)
+
+    def redo_settings(self):
+        if not self.redo_stack:
+            return
+
+        current_snapshot = self.snapshot_settings()
+        next_snapshot = self.redo_stack.pop()
+
+        self.undo_stack.append(current_snapshot)
+
+        self.apply_settings_snapshot(next_snapshot)
+
+    def update_history_buttons(self):
+        if not hasattr(self.settings_panel, "undo_button"):
+            return
+
+        self.settings_panel.undo_button.setEnabled(
+            bool(self.undo_stack)
+        )
+
+        self.settings_panel.redo_button.setEnabled(
+            bool(self.redo_stack)
+        )
+    
+    def apply_theme(self):
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #15171A;
+                color: #EAEAEA;
+                font-family: Segoe UI;
+                font-size: 13px;
+            }
+
+            QFrame {
+                background-color: #1E2228;
+                border: 1px solid #303640;
+                border-radius: 8px;
+            }
+
+            QLabel {
+                color: #EAEAEA;
+                border: none;
+                background: transparent;
+            }
+
+            QPushButton {
+                background-color: #2B313A;
+                color: #FFFFFF;
+                border: 1px solid #3D4652;
+                border-radius: 6px;
+                padding: 7px 10px;
+            }
+
+            QPushButton:hover {
+                background-color: #384150;
+            }
+
+            QPushButton:pressed {
+                background-color: #20252D;
+            }
+
+            QPushButton:disabled {
+                background-color: #202328;
+                color: #777777;
+                border: 1px solid #2A2E34;
+            }
+
+            QLineEdit,
+            QComboBox,
+            QPlainTextEdit {
+                background-color: #111317;
+                color: #FFFFFF;
+                border: 1px solid #3A414D;
+                border-radius: 6px;
+                padding: 6px;
+            }
+
+            QCheckBox {
+                spacing: 8px;
+                background: transparent;
+                border: none;
+            }
+
+            QProgressBar {
+                background-color: #111317;
+                border: 1px solid #3A414D;
+                border-radius: 6px;
+                text-align: center;
+                height: 18px;
+            }
+
+            QProgressBar::chunk {
+                background-color: #5B8CFF;
+                border-radius: 6px;
+            }
+
+            QScrollArea {
+                border: none;
+            }
+
+            QScrollBar:vertical {
+                background: #15171A;
+                width: 10px;
+            }
+
+            QScrollBar::handle:vertical {
+                background: #3A414D;
+                border-radius: 5px;
+            }
+
+            QScrollBar::handle:vertical:hover {
+                background: #4B5666;
+            }
+        """)

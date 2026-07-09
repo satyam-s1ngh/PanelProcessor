@@ -143,6 +143,16 @@ class SettingsPanel(QFrame):
 
         self.background_color_button = QPushButton("Background Color: #FFFFFF")
         layout.addWidget(self.background_color_button)
+        
+        history_layout = QHBoxLayout()
+
+        self.undo_button = QPushButton("Undo")
+        self.redo_button = QPushButton("Redo")
+
+        history_layout.addWidget(self.undo_button)
+        history_layout.addWidget(self.redo_button)
+
+        layout.addLayout(history_layout)
 
         layout.addWidget(QLabel("Border Thickness"))
         self.border_spinbox = NumberControl(
