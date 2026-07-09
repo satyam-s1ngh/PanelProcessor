@@ -1,10 +1,5 @@
-import os
-from PySide6.QtWidgets import QColorDialog
 from pathlib import Path
-from core.pipeline import Pipeline
-from core.file_manager import FileManager
-from core.settings import Settings
-from ui.settings_panel import SettingsPanel
+
 from PySide6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -12,18 +7,27 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QApplication,
     QMessageBox,
+    QColorDialog,
 )
+
+from PySide6.QtGui import QColor
+
+from core.pipeline import Pipeline
+from core.file_manager import FileManager
+from core.settings import Settings
 
 from ui.left_panel import LeftPanel
 from ui.preview_panel import PreviewPanel
-from PySide6.QtGui import QColor
+from ui.settings_panel import SettingsPanel
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        
+
         self.settings = Settings()
         self.settings.load()
+
         self.images = []
         self.current_index = 0
 
@@ -35,47 +39,42 @@ class MainWindow(QMainWindow):
 
         main_layout = QHBoxLayout(central_widget)
 
-       # Create panels
-
         self.left_panel = LeftPanel()
-        self.preview_panel = PreviewPanel()
-        self.preview_panel.canvas.set_settings(self.settings)
-
-        # Temporary center panel (Settings placeholder)
-
         self.settings_panel = SettingsPanel()
+        self.preview_panel = PreviewPanel()
 
-        # Main layout
+        self.preview_panel.canvas.set_settings(self.settings)
 
         main_layout.addWidget(self.left_panel, 1)
         main_layout.addWidget(self.settings_panel, 2)
         main_layout.addWidget(self.preview_panel, 2)
 
-        # Connect buttons
+        self.connect_signals()
+        self.apply_settings_to_ui()
 
-        self.settings_panel.background_checkbox.toggled.connect(
-            self.update_background_enabled
+    def connect_signals(self):
+        self.left_panel.input_button.clicked.connect(
+            self.select_input_folder
         )
 
-        self.settings_panel.background_color_button.clicked.connect(
-            self.choose_background_color
+        self.left_panel.output_button.clicked.connect(
+            self.select_output_folder
         )
 
-        self.left_panel.input_button.clicked.connect(self.select_input_folder)
+        self.left_panel.process_button.clicked.connect(
+            self.process_images
+        )
+
         self.preview_panel.navigation.previous_button.clicked.connect(
             self.previous_image
-            )
+        )
 
         self.preview_panel.navigation.next_button.clicked.connect(
             self.next_image
         )
-        self.left_panel.output_button.clicked.connect(self.select_output_folder)
 
         self.settings_panel.border_spinbox.valueChanged.connect(
             self.update_border_value
-        )
-        self.left_panel.process_button.clicked.connect(
-            self.process_images
         )
 
         self.settings_panel.custom_color_button.clicked.connect(
@@ -87,11 +86,11 @@ class MainWindow(QMainWindow):
         )
 
         self.settings_panel.corner_radius.valueChanged.connect(
-        self.update_corner_radius
+            self.update_corner_radius
         )
 
         self.settings_panel.shadow_checkbox.toggled.connect(
-        self.update_shadow
+            self.update_shadow
         )
 
         self.settings_panel.shadow_color_button.clicked.connect(
@@ -114,12 +113,18 @@ class MainWindow(QMainWindow):
             self.update_shadow_opacity
         )
 
-        self.apply_settings_to_ui()
-                        
+        self.settings_panel.background_checkbox.toggled.connect(
+            self.update_background_enabled
+        )
+
+        self.settings_panel.background_color_button.clicked.connect(
+            self.choose_background_color
+        )
+
     def select_input_folder(self):
         folder = QFileDialog.getExistingDirectory(
             self,
-            "Select Input Folder"
+            "Select Input Folder",
         )
 
         if not folder:
@@ -128,7 +133,6 @@ class MainWindow(QMainWindow):
         self.left_panel.input_path.setText(folder)
 
         self.images = FileManager.get_images(folder)
-
         self.current_index = 0
 
         if self.images:
@@ -137,7 +141,7 @@ class MainWindow(QMainWindow):
     def select_output_folder(self):
         folder = QFileDialog.getExistingDirectory(
             self,
-            "Select Output Folder"
+            "Select Output Folder",
         )
 
         if folder:
@@ -173,51 +177,16 @@ class MainWindow(QMainWindow):
 
     def update_border_value(self, value):
         self.settings.border_thickness = float(value)
-        self.preview_panel.canvas.set_settings(self.settings)
-        self.preview_panel.canvas.update()
+        self.refresh_preview()
 
     def update_border_color(self, color):
-        self.settings.border_color = color.lower()
-        self.preview_panel.canvas.update()
-
-    def process_images(self):
-        input_folder = self.left_panel.input_path.text()
-        output_folder = self.left_panel.output_path.text()
-
-        if not input_folder or not output_folder:
+        if color == "Custom":
             return
 
-        total = len(self.images)
-
-        self.left_panel.process_button.setEnabled(False)
-
-        for index, image_path in enumerate(self.images, start=1):
-            output_path = Path(output_folder) / image_path.name
-
-            Pipeline.process_one(
-                image_path,
-                output_path,
-                self.settings,
-            )
-
-            progress = int(index / total * 100)
-
-            self.left_panel.progress.setValue(progress)
-
-            QApplication.processEvents()
-
-        from PySide6.QtWidgets import QMessageBox
-
-        self.left_panel.process_button.setEnabled(True)
-
-        QMessageBox.information(
-            self,
-            "Done",
-            "Processing Complete!"
-        )
+        self.settings.border_color = color.lower()
+        self.refresh_preview()
 
     def choose_border_color(self):
-
         color = QColorDialog.getColor()
 
         if not color.isValid():
@@ -225,27 +194,27 @@ class MainWindow(QMainWindow):
 
         self.settings.border_color = color.name()
 
+        self.settings_panel.border_color.blockSignals(True)
+        self.settings_panel.border_color.setCurrentText("Custom")
+        self.settings_panel.border_color.blockSignals(False)
+
         self.update_color_button(
             self.settings_panel.custom_color_button,
             "Border Color",
             color.name(),
         )
 
-        self.preview_panel.canvas.update()
-
-    def update_border_color(self, color):
-        if color == "Custom":
-            return
-
-        self.settings.border_color = color.lower()
-        self.preview_panel.canvas.update()
+        self.refresh_preview()
 
     def update_corner_radius(self, value):
-        self.settings.corner_radius = value
-        self.preview_panel.canvas.update()
+        self.settings.corner_radius = int(value)
+        self.refresh_preview()
+
+    def update_shadow(self, enabled):
+        self.settings.shadow_enabled = bool(enabled)
+        self.refresh_preview()
 
     def choose_shadow_color(self):
-
         color = QColorDialog.getColor()
 
         if not color.isValid():
@@ -259,31 +228,27 @@ class MainWindow(QMainWindow):
             color.name(),
         )
 
-        self.preview_panel.canvas.update()    
-    
-    def update_shadow(self, enabled):
-        self.settings.shadow_enabled = enabled
-        self.preview_panel.canvas.update()
+        self.refresh_preview()
 
     def update_shadow_blur(self, value):
-        self.settings.shadow_blur = value
-        self.preview_panel.canvas.update()
+        self.settings.shadow_blur = int(value)
+        self.refresh_preview()
 
     def update_shadow_offset_x(self, value):
-        self.settings.shadow_offset_x = value
-        self.preview_panel.canvas.update()
+        self.settings.shadow_offset_x = int(value)
+        self.refresh_preview()
 
     def update_shadow_offset_y(self, value):
-        self.settings.shadow_offset_y = value
-        self.preview_panel.canvas.update()
+        self.settings.shadow_offset_y = int(value)
+        self.refresh_preview()
 
     def update_shadow_opacity(self, value):
-        self.settings.shadow_opacity = value
-        self.preview_panel.canvas.update()
+        self.settings.shadow_opacity = int(value)
+        self.refresh_preview()
 
     def update_background_enabled(self, enabled):
-        self.settings.background_enabled = enabled
-        self.preview_panel.canvas.update()
+        self.settings.background_enabled = bool(enabled)
+        self.refresh_preview()
 
     def choose_background_color(self):
         color = QColorDialog.getColor()
@@ -299,12 +264,50 @@ class MainWindow(QMainWindow):
             color.name(),
         )
 
-        self.preview_panel.canvas.update()
+        self.refresh_preview()
 
-    def closeEvent(self, event):
-        self.settings.save()
-        event.accept()
-    
+    def process_images(self):
+        input_folder = self.left_panel.input_path.text()
+        output_folder = self.left_panel.output_path.text()
+
+        if not input_folder or not output_folder:
+            return
+
+        if not self.images:
+            QMessageBox.warning(
+                self,
+                "No Images",
+                "Please select an input folder with images.",
+            )
+            return
+
+        total = len(self.images)
+
+        self.left_panel.process_button.setEnabled(False)
+        self.left_panel.progress.setValue(0)
+
+        for index, image_path in enumerate(self.images, start=1):
+            output_path = Path(output_folder) / image_path.name
+
+            Pipeline.process_one(
+                image_path,
+                output_path,
+                self.settings,
+            )
+
+            progress = int(index / total * 100)
+            self.left_panel.progress.setValue(progress)
+
+            QApplication.processEvents()
+
+        self.left_panel.process_button.setEnabled(True)
+
+        QMessageBox.information(
+            self,
+            "Done",
+            "Processing Complete!",
+        )
+
     def apply_settings_to_ui(self):
         panel = self.settings_panel
 
@@ -318,16 +321,10 @@ class MainWindow(QMainWindow):
             panel.shadow_offset_x,
             panel.shadow_offset_y,
             panel.shadow_opacity,
+            panel.shadow_color_button,
+            panel.background_checkbox,
+            panel.background_color_button,
         ]
-
-        if hasattr(panel, "shadow_color_button"):
-            widgets.append(panel.shadow_color_button)
-
-        if hasattr(panel, "background_checkbox"):
-            widgets.append(panel.background_checkbox)
-
-        if hasattr(panel, "background_color_button"):
-            widgets.append(panel.background_color_button)
 
         for widget in widgets:
             widget.blockSignals(True)
@@ -376,30 +373,27 @@ class MainWindow(QMainWindow):
                 int(self.settings.shadow_opacity)
             )
 
-            if hasattr(panel, "shadow_color_button"):
-                self.update_color_button(
-                    panel.shadow_color_button,
-                    "Shadow Color",
-                    self.settings.shadow_color,
-                )
+            self.update_color_button(
+                panel.shadow_color_button,
+                "Shadow Color",
+                self.settings.shadow_color,
+            )
 
-            if hasattr(panel, "background_checkbox"):
-                panel.background_checkbox.setChecked(
-                    bool(self.settings.background_enabled)
-                )
+            panel.background_checkbox.setChecked(
+                bool(self.settings.background_enabled)
+            )
 
-            if hasattr(panel, "background_color_button"):
-                self.update_color_button(
-                    panel.background_color_button,
-                    "Background Color",
-                    self.settings.background_color,
-                )
+            self.update_color_button(
+                panel.background_color_button,
+                "Background Color",
+                self.settings.background_color,
+            )
 
         finally:
             for widget in widgets:
                 widget.blockSignals(False)
 
-        self.preview_panel.canvas.update()
+        self.refresh_preview()
 
     def update_color_button(self, button, label, color_value):
         color = QColor(str(color_value))
@@ -429,3 +423,11 @@ class MainWindow(QMainWindow):
             }}
             """
         )
+
+    def refresh_preview(self):
+        self.preview_panel.canvas.set_settings(self.settings)
+        self.preview_panel.canvas.update()
+
+    def closeEvent(self, event):
+        self.settings.save()
+        event.accept()

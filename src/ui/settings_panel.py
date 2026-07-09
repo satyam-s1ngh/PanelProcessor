@@ -5,7 +5,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QComboBox,
     QPushButton,
-    QSpinBox,
     QCheckBox,
     QWidget,
     QLineEdit,
@@ -13,60 +12,114 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal
 
 
-class BorderThicknessControl(QWidget):
+class NumberControl(QWidget):
     valueChanged = Signal(float)
 
-    def __init__(self):
+    def __init__(
+        self,
+        minimum=0,
+        maximum=100,
+        step=1,
+        decimals=0,
+        suffix="",
+        default=0,
+    ):
         super().__init__()
 
-        self._value = 0.0
+        self.minimum = float(minimum)
+        self.maximum = float(maximum)
+        self.step = float(step)
+        self.decimals = int(decimals)
+        self.suffix = suffix
+        self._value = float(default)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
         self.minus_button = QPushButton("-")
-        self.input = QLineEdit("0.0")
+        self.input = QLineEdit()
         self.plus_button = QPushButton("+")
 
         self.input.setAlignment(Qt.AlignCenter)
 
         layout.addWidget(self.minus_button)
         layout.addWidget(self.input)
-        layout.addWidget(QLabel("px"))
+
+        if self.suffix:
+            layout.addWidget(QLabel(self.suffix))
+
         layout.addWidget(self.plus_button)
 
         self.minus_button.clicked.connect(self.decrease)
         self.plus_button.clicked.connect(self.increase)
         self.input.editingFinished.connect(self.apply_text_value)
 
+        self.setValue(self._value)
+
     def increase(self):
-        self.set_border_value(self._value + 0.5, emit=True)
+        self.setValue(
+            self._value + self.step,
+            emit=True,
+        )
 
     def decrease(self):
-        self.set_border_value(self._value - 0.5, emit=True)
+        self.setValue(
+            self._value - self.step,
+            emit=True,
+        )
 
     def apply_text_value(self):
-        text = self.input.text().replace("px", "").strip()
+        text = self.input.text()
+        text = text.replace(self.suffix, "").strip()
 
         try:
             value = float(text)
         except ValueError:
-            self.input.setText(f"{self._value:.1f}")
+            self.update_text()
             return
 
-        value = round(value * 2) / 2
-        self.set_border_value(value, emit=True)
+        value = round(value / self.step) * self.step
 
-    def set_border_value(self, value, emit=False):
-        value = max(0.0, min(100.0, float(value)))
+        self.setValue(
+            value,
+            emit=True,
+        )
+
+    def setValue(self, value, emit=False):
+        value = max(
+            self.minimum,
+            min(
+                self.maximum,
+                float(value),
+            ),
+        )
 
         self._value = value
-        self.input.setText(f"{self._value:.1f}")
+        self.update_text()
 
         if emit:
             self.valueChanged.emit(self._value)
 
     def value(self):
+        return self._value
+
+    def update_text(self):
+        if self.decimals == 0:
+            self.input.setText(
+                str(int(round(self._value)))
+            )
+        else:
+            self.input.setText(
+                f"{self._value:.{self.decimals}f}"
+            )
+
+    def set_border_value(self, value):
+        self.setValue(
+            float(value),
+            emit=False,
+        )
+
+    def border_value(self):
         return self._value
 
 
@@ -89,11 +142,19 @@ class SettingsPanel(QFrame):
         layout.addWidget(self.background_color_button)
 
         layout.addWidget(QLabel("Border Thickness"))
-        self.border_spinbox = BorderThicknessControl()
+        self.border_spinbox = NumberControl(
+            minimum=0,
+            maximum=100,
+            step=0.5,
+            decimals=1,
+            suffix="px",
+            default=0,
+        )
         layout.addWidget(self.border_spinbox)
 
         layout.addWidget(QLabel("Border Color"))
         self.border_color = QComboBox()
+
         self.custom_color_button = QPushButton("Custom Color")
         layout.addWidget(self.custom_color_button)
 
@@ -105,9 +166,14 @@ class SettingsPanel(QFrame):
         layout.addWidget(self.border_color)
 
         layout.addWidget(QLabel("Corner Radius"))
-        self.corner_radius = QSpinBox()
-        self.corner_radius.setRange(0, 100)
-        self.corner_radius.setSuffix(" px")
+        self.corner_radius = NumberControl(
+            minimum=0,
+            maximum=100,
+            step=1,
+            decimals=0,
+            suffix="px",
+            default=0,
+        )
         layout.addWidget(self.corner_radius)
 
         layout.addWidget(QLabel("Shadow"))
@@ -118,27 +184,43 @@ class SettingsPanel(QFrame):
         layout.addWidget(self.shadow_color_button)
 
         layout.addWidget(QLabel("Shadow Blur"))
-        self.shadow_blur = QSpinBox()
-        self.shadow_blur.setRange(0, 100)
-        self.shadow_blur.setValue(20)
+        self.shadow_blur = NumberControl(
+            minimum=0,
+            maximum=100,
+            step=1,
+            decimals=0,
+            default=20,
+        )
         layout.addWidget(self.shadow_blur)
 
         layout.addWidget(QLabel("Shadow Offset X"))
-        self.shadow_offset_x = QSpinBox()
-        self.shadow_offset_x.setRange(-100, 100)
-        self.shadow_offset_x.setValue(0)
+        self.shadow_offset_x = NumberControl(
+            minimum=-100,
+            maximum=100,
+            step=1,
+            decimals=0,
+            default=0,
+        )
         layout.addWidget(self.shadow_offset_x)
 
         layout.addWidget(QLabel("Shadow Offset Y"))
-        self.shadow_offset_y = QSpinBox()
-        self.shadow_offset_y.setRange(-100, 100)
-        self.shadow_offset_y.setValue(0)
+        self.shadow_offset_y = NumberControl(
+            minimum=-100,
+            maximum=100,
+            step=1,
+            decimals=0,
+            default=0,
+        )
         layout.addWidget(self.shadow_offset_y)
 
         layout.addWidget(QLabel("Shadow Opacity"))
-        self.shadow_opacity = QSpinBox()
-        self.shadow_opacity.setRange(0, 255)
-        self.shadow_opacity.setValue(100)
+        self.shadow_opacity = NumberControl(
+            minimum=0,
+            maximum=255,
+            step=1,
+            decimals=0,
+            default=100,
+        )
         layout.addWidget(self.shadow_opacity)
 
         layout.addStretch()
