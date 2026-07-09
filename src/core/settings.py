@@ -21,6 +21,9 @@ class Settings:
         self.background_enabled = False
         self.background_color = "#ffffff"
 
+        self.last_input_folder = ""
+        self.last_output_folder = ""
+
     def to_dict(self):
         return {
             "border_thickness": self.border_thickness,
@@ -36,6 +39,9 @@ class Settings:
 
             "background_enabled": self.background_enabled,
             "background_color": self.background_color,
+
+            "last_input_folder": self.last_input_folder,
+            "last_output_folder": self.last_output_folder,
         }
 
     def load(self):

@@ -56,6 +56,7 @@ class MainWindow(QMainWindow):
         self.connect_signals()
         self.apply_settings_to_ui()
         self.refresh_preset_combo()
+        self.restore_last_folders()
 
     def connect_signals(self):
         self.left_panel.input_button.clicked.connect(
@@ -151,15 +152,21 @@ class MainWindow(QMainWindow):
         )
 
     def select_input_folder(self):
+        current_folder = self.left_panel.input_path.text()
+
         folder = QFileDialog.getExistingDirectory(
             self,
             "Select Input Folder",
+            current_folder if current_folder else "",
         )
 
         if not folder:
             return
 
         self.left_panel.input_path.setText(folder)
+
+        self.settings.last_input_folder = folder
+        self.settings.save()
 
         self.images = FileManager.get_images(folder)
         self.current_index = 0
@@ -168,13 +175,21 @@ class MainWindow(QMainWindow):
             self.update_preview()
 
     def select_output_folder(self):
+        current_folder = self.left_panel.output_path.text()
+
         folder = QFileDialog.getExistingDirectory(
             self,
             "Select Output Folder",
+            current_folder if current_folder else "",
         )
 
-        if folder:
-            self.left_panel.output_path.setText(folder)
+        if not folder:
+            return
+
+        self.left_panel.output_path.setText(folder)
+
+        self.settings.last_output_folder = folder
+        self.settings.save()
 
     def update_preview(self):
         if not self.images:
@@ -498,6 +513,9 @@ class MainWindow(QMainWindow):
         self.preview_panel.canvas.update()
 
     def closeEvent(self, event):
+        self.settings.last_input_folder = self.left_panel.input_path.text()
+        self.settings.last_output_folder = self.left_panel.output_path.text()
+
         self.settings.save()
         event.accept()
     
@@ -546,7 +564,6 @@ class MainWindow(QMainWindow):
 
         combo.blockSignals(False)
 
-
     def apply_settings_data(self, data):
         if not data:
             return
@@ -560,7 +577,6 @@ class MainWindow(QMainWindow):
         self.apply_settings_to_ui()
         self.settings.save()
         self.refresh_preview()
-
 
     def apply_selected_preset(self):
         name = self.settings_panel.preset_combo.currentText()
@@ -585,7 +601,6 @@ class MainWindow(QMainWindow):
 
         self.apply_settings_data(preset_data)
 
-
     def save_new_preset(self):
         name, ok = QInputDialog.getText(
             self,
@@ -605,7 +620,6 @@ class MainWindow(QMainWindow):
 
         self.refresh_preset_combo()
         self.settings_panel.preset_combo.setCurrentText(name)
-
 
     def update_selected_preset(self):
         name = self.settings_panel.preset_combo.currentText()
@@ -635,7 +649,6 @@ class MainWindow(QMainWindow):
         self.refresh_preset_combo()
         self.settings_panel.preset_combo.setCurrentText(name)
 
-
     def delete_selected_preset(self):
         name = self.settings_panel.preset_combo.currentText()
 
@@ -659,3 +672,28 @@ class MainWindow(QMainWindow):
         self.preset_manager.delete_preset(name)
 
         self.refresh_preset_combo()
+    
+    def restore_last_folders(self):
+        input_folder = getattr(
+            self.settings,
+            "last_input_folder",
+            "",
+        )
+
+        output_folder = getattr(
+            self.settings,
+            "last_output_folder",
+            "",
+        )
+
+        if input_folder and Path(input_folder).exists():
+            self.left_panel.input_path.setText(input_folder)
+
+            self.images = FileManager.get_images(input_folder)
+            self.current_index = 0
+
+            if self.images:
+                self.update_preview()
+
+        if output_folder and Path(output_folder).exists():
+            self.left_panel.output_path.setText(output_folder)
