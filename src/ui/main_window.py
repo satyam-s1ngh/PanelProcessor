@@ -204,13 +204,25 @@ class MainWindow(QMainWindow):
         )
 
     def choose_border_color(self):
+
         color = QColorDialog.getColor()
 
         if not color.isValid():
             return
 
         self.settings.border_color = color.name()
-        self.settings_panel.border_color.setCurrentText("Custom")
+
+        self.settings_panel.custom_color_button.setText(
+            f"Border Color: {color.name().upper()}"
+        )
+
+        self.settings_panel.custom_color_button.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: {color.name()};
+            }}
+            """
+        )
         self.preview_panel.canvas.update()
 
     def update_border_color(self, color):
@@ -223,6 +235,29 @@ class MainWindow(QMainWindow):
     def update_corner_radius(self, value):
         self.settings.corner_radius = value
         self.preview_panel.canvas.update()
+
+    def choose_shadow_color(self):
+
+        color = QColorDialog.getColor()
+
+        if not color.isValid():
+            return
+
+        self.settings.shadow_color = color.name()
+
+        self.settings_panel.shadow_color_button.setText(
+            f"Shadow Color: {color.name().upper()}"
+        )
+
+        self.settings_panel.shadow_color_button.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: {color.name()};
+            }}
+            """
+        )
+
+        self.preview_panel.canvas.update()    
     
     def update_shadow(self, enabled):
         self.settings.shadow_enabled = enabled
@@ -242,15 +277,4 @@ class MainWindow(QMainWindow):
 
     def update_shadow_opacity(self, value):
         self.settings.shadow_opacity = value
-        self.preview_panel.canvas.update()
-
-    def choose_shadow_color(self):
-
-        color = QColorDialog.getColor()
-
-        if not color.isValid():
-            return
-
-        self.settings.shadow_color = color.name()
-
         self.preview_panel.canvas.update()
