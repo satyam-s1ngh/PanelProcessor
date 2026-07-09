@@ -65,6 +65,10 @@ class MainWindow(QMainWindow):
             self.process_images
         )
 
+        self.left_panel.process_current_button.clicked.connect(
+            self.process_current_image
+        )
+
         self.preview_panel.navigation.previous_button.clicked.connect(
             self.previous_image
         )
@@ -310,6 +314,40 @@ class MainWindow(QMainWindow):
             self,
             "Done",
             "Processing Complete!",
+        )
+
+    def process_current_image(self):
+        output_folder = self.left_panel.output_path.text()
+
+        if not output_folder:
+            QMessageBox.warning(
+                self,
+                "No Output Folder",
+                "Please select an output folder first.",
+            )
+            return
+
+        if not self.images:
+            QMessageBox.warning(
+                self,
+                "No Image",
+                "Please select an input folder with images first.",
+            )
+            return
+
+        image_path = self.images[self.current_index]
+        output_path = Path(output_folder) / image_path.name
+
+        Pipeline.process_one(
+            image_path,
+            output_path,
+            self.settings,
+        )
+
+        QMessageBox.information(
+            self,
+            "Done",
+            "Current image processed successfully!",
         )
 
     def apply_settings_to_ui(self):

@@ -44,6 +44,9 @@ class LeftPanel(QFrame):
 
         layout.addWidget(self.progress)
 
+        self.process_current_button = QPushButton("▶ Process Current Image")
+        layout.addWidget(self.process_current_button)
+
         self.process_button = QPushButton("▶ Process Images")
         layout.addWidget(self.process_button)
 
