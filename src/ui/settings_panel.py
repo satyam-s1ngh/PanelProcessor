@@ -223,4 +223,7 @@ class SettingsPanel(QFrame):
         )
         layout.addWidget(self.shadow_opacity)
 
+        self.reset_button = QPushButton("Reset Settings")
+        layout.addWidget(self.reset_button)
+
         layout.addStretch()

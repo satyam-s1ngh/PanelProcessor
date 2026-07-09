@@ -121,6 +121,10 @@ class MainWindow(QMainWindow):
             self.choose_background_color
         )
 
+        self.settings_panel.reset_button.clicked.connect(
+            self.reset_settings
+        )
+
     def select_input_folder(self):
         folder = QFileDialog.getExistingDirectory(
             self,
@@ -431,3 +435,14 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         self.settings.save()
         event.accept()
+    
+    def reset_settings(self):
+        self.settings = Settings()
+
+        self.preview_panel.canvas.set_settings(self.settings)
+
+        self.apply_settings_to_ui()
+
+        self.settings.save()
+
+        self.refresh_preview()
