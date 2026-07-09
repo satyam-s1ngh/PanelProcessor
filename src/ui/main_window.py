@@ -78,6 +78,10 @@ class MainWindow(QMainWindow):
         self.update_shadow
         )
 
+        self.settings_panel.shadow_color_button.clicked.connect(
+            self.choose_shadow_color
+        )
+
         self.settings_panel.shadow_blur.valueChanged.connect(
             self.update_shadow_blur
         )
@@ -238,4 +242,15 @@ class MainWindow(QMainWindow):
 
     def update_shadow_opacity(self, value):
         self.settings.shadow_opacity = value
+        self.preview_panel.canvas.update()
+
+    def choose_shadow_color(self):
+
+        color = QColorDialog.getColor()
+
+        if not color.isValid():
+            return
+
+        self.settings.shadow_color = color.name()
+
         self.preview_panel.canvas.update()

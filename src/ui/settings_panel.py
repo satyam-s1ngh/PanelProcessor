@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QSpinBox
 from PySide6.QtWidgets import QCheckBox
 
 
+
 class SettingsPanel(QFrame):
     def __init__(self):
         super().__init__()
@@ -51,6 +52,10 @@ class SettingsPanel(QFrame):
         layout.addWidget(QLabel("Shadow"))
         self.shadow_checkbox = QCheckBox("Enable Shadow")
         layout.addWidget(self.shadow_checkbox)
+
+        self.shadow_color_button = QPushButton("Shadow Color")
+
+        layout.addWidget(self.shadow_color_button)
 
         layout.addWidget(QLabel("Shadow Blur"))
 

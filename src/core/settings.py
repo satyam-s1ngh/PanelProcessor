@@ -12,4 +12,5 @@ class Settings:
         self.shadow_opacity = 120
         self.shadow_offset_x = 0
         self.shadow_offset_y = 0
+        self.shadow_color = "#000000"
         

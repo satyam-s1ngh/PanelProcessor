@@ -114,7 +114,7 @@ class ImageProcessor:
 
         blur = int(settings.shadow_blur)
 
-        color = QColor(0, 0, 0, settings.shadow_opacity)
+        color = QColor(settings.shadow_color)
 
         outer = QPainterPath()
 

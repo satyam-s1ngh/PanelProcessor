@@ -5,6 +5,7 @@ from core.pipeline import Pipeline
 from core.settings import Settings
 from PySide6.QtWidgets import QApplication
 from ui.main_window import MainWindow
+from PySide6.QtWidgets import QColorDialog
 
 
 def main():
