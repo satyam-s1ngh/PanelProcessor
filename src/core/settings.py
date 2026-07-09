@@ -21,6 +21,8 @@ class Settings:
         self.background_enabled = False
         self.background_color = "#ffffff"
 
+        self.output_format = "PNG"
+
         self.last_input_folder = ""
         self.last_output_folder = ""
 
@@ -39,6 +41,8 @@ class Settings:
 
             "background_enabled": self.background_enabled,
             "background_color": self.background_color,
+
+            "output_format": self.output_format,
 
             "last_input_folder": self.last_input_folder,
             "last_output_folder": self.last_output_folder,

@@ -5,14 +5,20 @@ from core.exporter import Exporter
 
 
 class Pipeline:
-
     @staticmethod
     def process_one(input_path, output_path, settings):
         image = QImage(str(input_path))
+
+        if image.isNull():
+            raise ValueError(f"Could not load image: {input_path}")
 
         processed = ImageProcessor.process(
             image,
             settings,
         )
 
-        Exporter.save(processed, output_path)
+        return Exporter.save(
+            processed,
+            output_path,
+            settings,
+        )

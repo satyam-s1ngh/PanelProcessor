@@ -143,6 +143,17 @@ class SettingsPanel(QFrame):
 
         self.background_color_button = QPushButton("Background Color: #FFFFFF")
         layout.addWidget(self.background_color_button)
+
+        layout.addWidget(QLabel("Output Format"))
+        self.output_format = QComboBox()
+        self.output_format.addItems([
+            "PNG",
+            "JPG",
+            "WEBP",
+            "Same as Input",
+        ])
+        self.output_format.setCurrentText("PNG")
+        layout.addWidget(self.output_format)
         
         history_layout = QHBoxLayout()
 

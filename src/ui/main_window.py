@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
 )
 
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QFont
 
 from core.pipeline import Pipeline
 from core.file_manager import FileManager
@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         self.undo_stack = []
         self.redo_stack = []
         self.is_applying_history = False
+        self.jpg_warning_shown = False
 
         self.setWindowTitle("Panel Processor")
         self.resize(1400, 800)
@@ -142,6 +143,10 @@ class MainWindow(QMainWindow):
 
         self.settings_panel.background_color_button.clicked.connect(
             self.choose_background_color
+        )
+
+        self.settings_panel.output_format.currentTextChanged.connect(
+            self.update_output_format
         )
 
         self.settings_panel.reset_button.clicked.connect(
@@ -332,7 +337,12 @@ class MainWindow(QMainWindow):
     def update_background_enabled(self, enabled):
         self.push_undo_state()
         self.settings.background_enabled = bool(enabled)
+
+        if enabled:
+            self.jpg_warning_shown = False
+
         self.refresh_preview()
+        self.handle_jpg_warning()
 
     def choose_background_color(self):
         color = QColorDialog.getColor()
@@ -350,6 +360,48 @@ class MainWindow(QMainWindow):
         )
 
         self.refresh_preview()
+
+    def update_output_format(self, value):
+        self.push_undo_state()
+        self.settings.output_format = value
+        self.settings.save()
+        self.handle_jpg_warning()
+
+    def handle_jpg_warning(self):
+        output_format = str(
+            getattr(self.settings, "output_format", "PNG")
+        ).upper()
+
+        background_enabled = bool(
+            getattr(self.settings, "background_enabled", False)
+        )
+
+        exports_jpg = output_format in {"JPG", "JPEG"}
+
+        if output_format == "SAME AS INPUT":
+            exports_jpg = any(
+                image_path.suffix.lower() in {".jpg", ".jpeg"}
+                for image_path in self.images
+            )
+
+        if exports_jpg and not background_enabled:
+            if self.jpg_warning_shown:
+                return
+
+            QMessageBox.information(
+                self,
+                "JPG Transparency Warning",
+                (
+                    "JPG does not support transparency.\n\n"
+                    "White background will be used automatically.\n\n"
+                    "If you want a custom background, enable Background Color.\n"
+                    "Or use PNG to preserve transparency."
+                ),
+            )
+
+            self.jpg_warning_shown = True
+        else:
+            self.jpg_warning_shown = False
 
     def process_images(self):
         input_folder = self.left_panel.input_path.text()
@@ -370,6 +422,8 @@ class MainWindow(QMainWindow):
                 "Please select an input folder with images.",
             )
             return
+
+        self.handle_jpg_warning()
 
         total = len(self.images)
         processed = 0
@@ -480,6 +534,8 @@ class MainWindow(QMainWindow):
             )
             return
 
+        self.handle_jpg_warning()
+
         image_path = self.images[self.current_index]
 
         skip_existing = self.left_panel.skip_existing_checkbox.isChecked()
@@ -543,6 +599,7 @@ class MainWindow(QMainWindow):
             panel.shadow_color_button,
             panel.background_checkbox,
             panel.background_color_button,
+            panel.output_format,
         ]
 
         for widget in widgets:
@@ -608,6 +665,24 @@ class MainWindow(QMainWindow):
                 self.settings.background_color,
             )
 
+            output_format = str(
+                getattr(self.settings, "output_format", "PNG")
+            )
+
+            valid_formats = [
+                "PNG",
+                "JPG",
+                "WEBP",
+                "Same as Input",
+            ]
+
+            if output_format not in valid_formats:
+                output_format = "PNG"
+
+            panel.output_format.setCurrentText(
+                output_format
+            )
+
         finally:
             for widget in widgets:
                 widget.blockSignals(False)
@@ -666,6 +741,35 @@ class MainWindow(QMainWindow):
 
         self.refresh_preview()
 
+    def get_output_extension(self, image_path):
+        output_format = str(
+            getattr(self.settings, "output_format", "PNG")
+        ).upper()
+
+        input_extension = image_path.suffix.lower().replace(".", "")
+
+        if output_format == "SAME AS INPUT":
+            if input_extension not in {"png", "jpg", "jpeg", "webp"}:
+                return "png"
+
+            return "jpg" if input_extension == "jpeg" else input_extension
+
+        if output_format in {"JPG", "JPEG"}:
+            return "jpg"
+
+        if output_format == "WEBP":
+            return "webp"
+
+        return "png"
+
+    def get_default_output_path(self, output_folder, image_path):
+        output_folder = Path(output_folder)
+
+        base_name = image_path.stem
+        extension = self.get_output_extension(image_path)
+
+        return output_folder / f"{base_name}_processed.{extension}"
+
     def get_output_path(self, output_folder, image_path):
         output_path = self.get_default_output_path(
             output_folder,
@@ -678,16 +782,16 @@ class MainWindow(QMainWindow):
         output_folder = Path(output_folder)
 
         base_name = image_path.stem
-        extension = image_path.suffix
+        extension = self.get_output_extension(image_path)
 
         counter = 1
 
         while output_path.exists():
-            output_path = output_folder / f"{base_name}_processed_{counter}{extension}"
+            output_path = output_folder / f"{base_name}_processed_{counter}.{extension}"
             counter += 1
 
         return output_path
-    
+
     def refresh_preset_combo(self):
         combo = self.settings_panel.preset_combo
 
@@ -913,14 +1017,6 @@ class MainWindow(QMainWindow):
             f"{image_path.name} -> {error}"
         )
 
-    def get_default_output_path(self, output_folder, image_path):
-        output_folder = Path(output_folder)
-
-        base_name = image_path.stem
-        extension = image_path.suffix
-
-        return output_folder / f"{base_name}_processed{extension}"
-    
     def snapshot_settings(self):
         return copy.deepcopy(
             self.settings.to_dict()
@@ -1002,12 +1098,17 @@ class MainWindow(QMainWindow):
         )
     
     def apply_theme(self):
+        app = QApplication.instance()
+
+        if app is not None:
+            font = QFont("Segoe UI")
+            font.setPointSize(10)
+            app.setFont(font)
+
         self.setStyleSheet("""
             QWidget {
                 background-color: #15171A;
                 color: #EAEAEA;
-                font-family: Segoe UI;
-                font-size: 13px;
             }
 
             QFrame {
