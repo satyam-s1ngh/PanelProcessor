@@ -13,4 +13,6 @@ class Settings:
         self.shadow_offset_x = 0
         self.shadow_offset_y = 0
         self.shadow_color = "#000000"
+        self.background_enabled = False
+        self.background_color = "#ffffff"
         

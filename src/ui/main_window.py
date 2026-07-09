@@ -51,6 +51,14 @@ class MainWindow(QMainWindow):
 
         # Connect buttons
 
+        self.settings_panel.background_checkbox.toggled.connect(
+            self.update_background_enabled
+        )
+
+        self.settings_panel.background_color_button.clicked.connect(
+            self.choose_background_color
+        )
+
         self.left_panel.input_button.clicked.connect(self.select_input_folder)
         self.preview_panel.navigation.previous_button.clicked.connect(
             self.previous_image
@@ -277,4 +285,31 @@ class MainWindow(QMainWindow):
 
     def update_shadow_opacity(self, value):
         self.settings.shadow_opacity = value
+        self.preview_panel.canvas.update()
+
+    def update_background_enabled(self, enabled):
+        self.settings.background_enabled = enabled
+        self.preview_panel.canvas.update()
+
+
+    def choose_background_color(self):
+        color = QColorDialog.getColor()
+
+        if not color.isValid():
+            return
+
+        self.settings.background_color = color.name()
+
+        self.settings_panel.background_color_button.setText(
+            f"Background Color: {color.name().upper()}"
+        )
+
+        self.settings_panel.background_color_button.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: {color.name()};
+            }}
+            """
+        )
+
         self.preview_panel.canvas.update()

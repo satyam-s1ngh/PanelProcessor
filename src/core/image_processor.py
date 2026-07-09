@@ -45,10 +45,17 @@ class ImageProcessor:
 
         s = ImageProcessor.SCALE
 
+        if getattr(settings, "background_enabled", False):
+            bg_color = ImageProcessor.color_to_rgba(
+                getattr(settings, "background_color", "#ffffff")
+            )
+        else:
+            bg_color = (0, 0, 0, 0)
+
         canvas = Image.new(
             "RGBA",
             (out_w * s, out_h * s),
-            (0, 0, 0, 0),
+            bg_color,
         )
 
         # ---------- Shadow ----------

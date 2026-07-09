@@ -24,6 +24,12 @@ class SettingsPanel(QFrame):
 
         layout.addWidget(title)
 
+        self.background_checkbox = QCheckBox("Use Background Color")
+        layout.addWidget(self.background_checkbox)
+
+        self.background_color_button = QPushButton("Background Color: #FFFFFF")
+        layout.addWidget(self.background_color_button)
+
         layout.addWidget(QLabel("Border Thickness"))
         self.border_spinbox = QDoubleSpinBox()
         self.border_spinbox.setRange(0.0, 30.0)
