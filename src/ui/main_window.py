@@ -129,6 +129,22 @@ class MainWindow(QMainWindow):
             self.reset_settings
         )
 
+        self.settings_panel.preset_clean_button.clicked.connect(
+            self.apply_clean_border_preset
+        )
+
+        self.settings_panel.preset_shadow_button.clicked.connect(
+            self.apply_soft_shadow_preset
+        )
+
+        self.settings_panel.preset_glow_button.clicked.connect(
+            self.apply_glow_preset
+        )
+
+        self.settings_panel.preset_pop_button.clicked.connect(
+            self.apply_thumbnail_pop_preset
+        )
+
     def select_input_folder(self):
         folder = QFileDialog.getExistingDirectory(
             self,
@@ -506,3 +522,70 @@ class MainWindow(QMainWindow):
             counter += 1
 
         return output_path
+    
+    def apply_clean_border_preset(self):
+        self.settings.border_thickness = 4.0
+        self.settings.border_color = "#000000"
+        self.settings.corner_radius = 0
+
+        self.settings.shadow_enabled = False
+
+        self.settings.background_enabled = False
+
+        self.apply_settings_to_ui()
+        self.settings.save()
+
+
+    def apply_soft_shadow_preset(self):
+        self.settings.border_thickness = 0.0
+        self.settings.border_color = "#000000"
+        self.settings.corner_radius = 0
+
+        self.settings.shadow_enabled = True
+        self.settings.shadow_blur = 18
+        self.settings.shadow_opacity = 110
+        self.settings.shadow_offset_x = 0
+        self.settings.shadow_offset_y = 6
+        self.settings.shadow_color = "#000000"
+
+        self.settings.background_enabled = False
+
+        self.apply_settings_to_ui()
+        self.settings.save()
+
+
+    def apply_glow_preset(self):
+        self.settings.border_thickness = 0.0
+        self.settings.border_color = "#000000"
+        self.settings.corner_radius = 0
+
+        self.settings.shadow_enabled = True
+        self.settings.shadow_blur = 25
+        self.settings.shadow_opacity = 150
+        self.settings.shadow_offset_x = 0
+        self.settings.shadow_offset_y = 0
+        self.settings.shadow_color = "#ffffff"
+
+        self.settings.background_enabled = True
+        self.settings.background_color = "#000000"
+
+        self.apply_settings_to_ui()
+        self.settings.save()
+
+
+    def apply_thumbnail_pop_preset(self):
+        self.settings.border_thickness = 6.0
+        self.settings.border_color = "#ffffff"
+        self.settings.corner_radius = 8
+
+        self.settings.shadow_enabled = True
+        self.settings.shadow_blur = 20
+        self.settings.shadow_opacity = 130
+        self.settings.shadow_offset_x = 0
+        self.settings.shadow_offset_y = 5
+        self.settings.shadow_color = "#000000"
+
+        self.settings.background_enabled = False
+
+        self.apply_settings_to_ui()
+        self.settings.save()
