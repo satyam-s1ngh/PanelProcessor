@@ -151,6 +151,10 @@ class MainWindow(QMainWindow):
             self.delete_selected_preset
         )
 
+        self.settings_panel.preview_original_checkbox.toggled.connect(
+            self.toggle_original_preview
+        )
+
     def select_input_folder(self):
         current_folder = self.left_panel.input_path.text()
 
@@ -673,7 +677,7 @@ class MainWindow(QMainWindow):
 
         self.refresh_preset_combo()
     
-    def restore_last_folders(self):
+    def restore_last_folders(self): 
         input_folder = getattr(
             self.settings,
             "last_input_folder",
@@ -697,3 +701,6 @@ class MainWindow(QMainWindow):
 
         if output_folder and Path(output_folder).exists():
             self.left_panel.output_path.setText(output_folder)
+    
+    def toggle_original_preview(self, enabled):
+        self.preview_panel.canvas.set_show_original(enabled)

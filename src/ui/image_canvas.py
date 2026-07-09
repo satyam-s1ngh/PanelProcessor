@@ -15,6 +15,8 @@ class ImageCanvas(QWidget):
         self.cached_pixmap = None
         self.cached_key = None
 
+        self.show_original = False
+
         self.setMinimumSize(600, 600)
 
     def set_image(self, image_path):
@@ -64,7 +66,7 @@ class ImageCanvas(QWidget):
         if self.cached_pixmap is not None and self.cached_key == key:
             return self.cached_pixmap
 
-        if self.settings is None:
+        if self.settings is None or self.show_original:
             processed = self.image
         else:
             processed = ImageProcessor.process(
@@ -143,3 +145,11 @@ class ImageCanvas(QWidget):
             pixmap,
             pixmap.rect(),
         )
+    
+    def set_show_original(self, enabled):
+        self.show_original = enabled
+
+        self.cached_pixmap = None
+        self.cached_key = None
+
+        self.update()

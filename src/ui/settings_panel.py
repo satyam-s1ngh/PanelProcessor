@@ -135,6 +135,9 @@ class SettingsPanel(QFrame):
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
+        self.preview_original_checkbox = QCheckBox("Show Original Preview")
+        layout.addWidget(self.preview_original_checkbox)
+        
         self.background_checkbox = QCheckBox("Use Background Color")
         layout.addWidget(self.background_checkbox)
 
