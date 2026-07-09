@@ -1,4 +1,5 @@
 from pathlib import Path
+import time
 
 from PySide6.QtWidgets import (
     QMainWindow,
@@ -35,6 +36,7 @@ class MainWindow(QMainWindow):
 
         self.images = []
         self.current_index = 0
+        self.cancel_processing = False
 
         self.setWindowTitle("Panel Processor")
         self.resize(1400, 800)
@@ -158,6 +160,10 @@ class MainWindow(QMainWindow):
 
         self.settings_panel.preview_original_checkbox.toggled.connect(
             self.toggle_original_preview
+        )
+
+        self.left_panel.cancel_button.clicked.connect(
+            self.request_cancel_processing
         )
 
     def select_input_folder(self):
@@ -324,6 +330,11 @@ class MainWindow(QMainWindow):
         output_folder = self.left_panel.output_path.text()
 
         if not input_folder or not output_folder:
+            QMessageBox.warning(
+                self,
+                "Missing Folder",
+                "Please select both input and output folders.",
+            )
             return
 
         if not self.images:
@@ -335,33 +346,93 @@ class MainWindow(QMainWindow):
             return
 
         total = len(self.images)
+        processed = 0
+        skipped = 0
+        errors = 0
 
-        self.left_panel.process_button.setEnabled(False)
-        self.left_panel.progress.setValue(0)
+        skip_existing = self.left_panel.skip_existing_checkbox.isChecked()
+
+        self.reset_processing_ui()
+
+        start_time = time.time()
 
         for index, image_path in enumerate(self.images, start=1):
-            output_path = self.get_output_path(
-                output_folder,
-                image_path,
+            if self.cancel_processing:
+                self.update_processing_status(
+                    index - 1,
+                    total,
+                    processed,
+                    skipped,
+                    errors,
+                    start_time,
+                )
+
+                self.finish_processing_ui("Cancelled")
+                QMessageBox.information(
+                    self,
+                    "Cancelled",
+                    "Processing was cancelled.",
+                )
+                return
+
+            try:
+                default_output_path = self.get_default_output_path(
+                    output_folder,
+                    image_path,
+                )
+
+                if skip_existing and default_output_path.exists():
+                    skipped += 1
+
+                    self.update_processing_status(
+                        index,
+                        total,
+                        processed,
+                        skipped,
+                        errors,
+                        start_time,
+                    )
+
+                    continue
+
+                output_path = self.get_output_path(
+                    output_folder,
+                    image_path,
+                )
+
+                Pipeline.process_one(
+                    image_path,
+                    output_path,
+                    self.settings,
+                )
+
+                processed += 1
+
+            except Exception as error:
+                errors += 1
+                self.log_error(
+                    image_path,
+                    error,
+                )
+
+            self.update_processing_status(
+                index,
+                total,
+                processed,
+                skipped,
+                errors,
+                start_time,
             )
 
-            Pipeline.process_one(
-                image_path,
-                output_path,
-                self.settings,
-            )
-
-            progress = int(index / total * 100)
-            self.left_panel.progress.setValue(progress)
-
-            QApplication.processEvents()
-
-        self.left_panel.process_button.setEnabled(True)
+        self.finish_processing_ui("Processing Complete")
 
         QMessageBox.information(
             self,
             "Done",
-            "Processing Complete!",
+            f"Processing Complete!\n\n"
+            f"Processed: {processed}\n"
+            f"Skipped: {skipped}\n"
+            f"Errors: {errors}",
         )
 
     def process_current_image(self):
@@ -384,22 +455,51 @@ class MainWindow(QMainWindow):
             return
 
         image_path = self.images[self.current_index]
-        output_path = self.get_output_path(
-            output_folder,
-            image_path,
-        )
 
-        Pipeline.process_one(
-            image_path,
-            output_path,
-            self.settings,
-        )
+        skip_existing = self.left_panel.skip_existing_checkbox.isChecked()
 
-        QMessageBox.information(
-            self,
-            "Done",
-            "Current image processed successfully!",
-        )
+        try:
+            default_output_path = self.get_default_output_path(
+                output_folder,
+                image_path,
+            )
+
+            if skip_existing and default_output_path.exists():
+                QMessageBox.information(
+                    self,
+                    "Skipped",
+                    "This image is already processed.",
+                )
+                return
+
+            output_path = self.get_output_path(
+                output_folder,
+                image_path,
+            )
+
+            Pipeline.process_one(
+                image_path,
+                output_path,
+                self.settings,
+            )
+
+            QMessageBox.information(
+                self,
+                "Done",
+                "Current image processed successfully!",
+            )
+
+        except Exception as error:
+            self.log_error(
+                image_path,
+                error,
+            )
+
+            QMessageBox.warning(
+                self,
+                "Error",
+                f"Failed to process image:\n{error}",
+            )
 
     def apply_settings_to_ui(self):
         panel = self.settings_panel
@@ -540,12 +640,18 @@ class MainWindow(QMainWindow):
         self.refresh_preview()
 
     def get_output_path(self, output_folder, image_path):
+        output_path = self.get_default_output_path(
+            output_folder,
+            image_path,
+        )
+
+        if not output_path.exists():
+            return output_path
+
         output_folder = Path(output_folder)
 
         base_name = image_path.stem
         extension = image_path.suffix
-
-        output_path = output_folder / f"{base_name}_processed{extension}"
 
         counter = 1
 
@@ -709,3 +815,80 @@ class MainWindow(QMainWindow):
     
     def toggle_original_preview(self, enabled):
         self.preview_panel.canvas.set_show_original(enabled)
+
+    def request_cancel_processing(self):
+        self.cancel_processing = True
+        self.left_panel.processing_status.setText("Cancelling...")
+
+    def reset_processing_ui(self):
+        self.cancel_processing = False
+
+        self.left_panel.process_button.setEnabled(False)
+        self.left_panel.process_current_button.setEnabled(False)
+        self.left_panel.cancel_button.setEnabled(True)
+
+        self.left_panel.progress.setValue(0)
+        self.left_panel.error_log.clear()
+        self.left_panel.processing_status.setText("Starting...")
+        self.left_panel.eta_label.setText("ETA: calculating...")
+
+    def finish_processing_ui(self, message="Done"):
+        self.left_panel.process_button.setEnabled(True)
+        self.left_panel.process_current_button.setEnabled(True)
+        self.left_panel.cancel_button.setEnabled(False)
+
+        self.left_panel.processing_status.setText(message)
+        self.left_panel.eta_label.setText("ETA: --")
+
+    def format_seconds(self, seconds):
+        seconds = max(0, int(seconds))
+
+        minutes = seconds // 60
+        seconds = seconds % 60
+
+        return f"{minutes:02d}:{seconds:02d}"
+   
+    def update_processing_status(
+        self,
+        current,
+        total,
+        processed,
+        skipped,
+        errors,
+        start_time,
+    ):
+        progress = int(current / total * 100) if total else 0
+        self.left_panel.progress.setValue(progress)
+
+        self.left_panel.processing_status.setText(
+            f"Processing {current} / {total} | "
+            f"Done: {processed} | "
+            f"Skipped: {skipped} | "
+            f"Errors: {errors}"
+        )
+
+        elapsed = time.time() - start_time
+
+        if current > 0:
+            average_time = elapsed / current
+            remaining_items = total - current
+            eta = average_time * remaining_items
+
+            self.left_panel.eta_label.setText(
+                f"ETA: {self.format_seconds(eta)}"
+            )
+
+        QApplication.processEvents()
+
+    def log_error(self, image_path, error):
+        self.left_panel.error_log.appendPlainText(
+            f"{image_path.name} -> {error}"
+        )
+
+    def get_default_output_path(self, output_folder, image_path):
+        output_folder = Path(output_folder)
+
+        base_name = image_path.stem
+        extension = image_path.suffix
+
+        return output_folder / f"{base_name}_processed{extension}"
