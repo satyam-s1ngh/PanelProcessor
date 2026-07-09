@@ -1,259 +1,216 @@
-from PySide6.QtGui import (
-    QImage,
-    QPainter,
-    QColor,
-    QPainterPath,
-)
+from io import BytesIO
+from PIL import Image, ImageDraw, ImageFilter
 
-from PySide6.QtCore import (
-    Qt,
-    QRectF,
-)
-from PySide6.QtCore import QTimer
+from PySide6.QtGui import QImage
+from PySide6.QtCore import QByteArray, QBuffer, QIODevice
 
 
 class ImageProcessor:
 
+    SCALE = 4
+
     @staticmethod
     def process(image: QImage, settings) -> QImage:
-
         border = max(0.0, float(settings.border_thickness))
         radius = max(0.0, float(settings.corner_radius))
 
-        shadow_enabled = settings.shadow_enabled
+        shadow_enabled = bool(settings.shadow_enabled)
+        shadow_blur = max(0, int(settings.shadow_blur))
+        shadow_opacity = max(0, min(255, int(settings.shadow_opacity)))
+        shadow_offset_x = int(settings.shadow_offset_x) if shadow_enabled else 0
+        shadow_offset_y = int(settings.shadow_offset_y) if shadow_enabled else 0
+        shadow_color = getattr(settings, "shadow_color", "#000000")
 
-        blur = float(settings.shadow_blur) if shadow_enabled else 0.0
+        border_color = getattr(settings, "border_color", "#000000")
 
-        offset_x = float(settings.shadow_offset_x) if shadow_enabled else 0.0
-        offset_y = float(settings.shadow_offset_y) if shadow_enabled else 0.0
+        if (
+            border <= 0
+            and radius <= 0
+            and not shadow_enabled
+        ):
+            return image.copy()
 
-        margin = blur * 2 + border + 2
+        pil_image = ImageProcessor.qimage_to_pil(image)
+        w, h = pil_image.size
 
-        left = margin + max(0.0, -offset_x)
-        top = margin + max(0.0, -offset_y)
+        margin = shadow_blur * 3 + 4 if shadow_enabled else 0
 
-        right = margin + max(0.0, offset_x)
-        bottom = margin + max(0.0, offset_y)
+        left = margin + max(0, -shadow_offset_x)
+        right = margin + max(0, shadow_offset_x)
+        top = margin + max(0, -shadow_offset_y)
+        bottom = margin + max(0, shadow_offset_y)
 
-        width = int(
-            image.width()
-            + border * 2
-            + left
-            + right
+        out_w = int(round(w + border * 2 + left + right))
+        out_h = int(round(h + border * 2 + top + bottom))
+
+        s = ImageProcessor.SCALE
+
+        canvas = Image.new(
+            "RGBA",
+            (out_w * s, out_h * s),
+            (0, 0, 0, 0),
         )
 
-        height = int(
-            image.height()
-            + border * 2
-            + top
-            + bottom
-        )
-
-        result = QImage(
-            width,
-            height,
-            QImage.Format_ARGB32_Premultiplied,
-        )
-
-        result.fill(Qt.transparent)
-
-        painter = QPainter(result)
-        painter.setRenderHint(QPainter.Antialiasing,True)
-        painter.setRenderHint(
-            QPainter.SmoothPixmapTransform,
-            True,
-        )
-
-        origin_x = left
-        origin_y = top
-
-        if shadow_enabled:
-            ImageProcessor.draw_shadow(
-                painter,
-                image,
-                border,
-                radius,
-                settings,
-                origin_x,
-                origin_y,
+        # ---------- Shadow ----------
+        if shadow_enabled and shadow_opacity > 0 and shadow_blur > 0:
+            shadow_layer = Image.new(
+                "RGBA",
+                canvas.size,
+                (0, 0, 0, 0),
             )
 
-        ImageProcessor.draw_border(
-            painter,
-            image,
-            border,
-            radius,
-            settings,
-            origin_x,
-            origin_y,
-        )
+            draw = ImageDraw.Draw(shadow_layer)
 
-        ImageProcessor.draw_image(
-            painter,
-            image,
-            border,
-            radius,
-            origin_x,
-            origin_y,
-        )
+            shadow_rect = [
+                int(round((left + shadow_offset_x) * s)),
+                int(round((top + shadow_offset_y) * s)),
+                int(round((left + shadow_offset_x + w + border * 2) * s)),
+                int(round((top + shadow_offset_y + h + border * 2) * s)),
+            ]
 
-        painter.end()
+            r = int(round((radius + border) * s))
 
-        return result
-    
-    @staticmethod
-    def draw_shadow(
-        painter,
-        image,
-        border,
-        radius,
-        settings,
-        origin_x,
-        origin_y,
-    ):
-
-        blur = int(settings.shadow_blur)
-
-        color = QColor(settings.shadow_color)
-
-        outer = QPainterPath()
-
-        inner = QPainterPath()
-
-        for i in range(1, blur * 2 + 1):
-
-            import math
-
-            spread = i
-
-            sigma = blur * 0.55
-
-            alpha = int(
-                settings.shadow_opacity *
-                math.exp(-(spread ** 2) / (2 * sigma ** 2))
-)
-
-            alpha = max(0, min(alpha, 255))
-
-            color.setAlpha(alpha)
-
-            rect = QRectF(
-                origin_x + settings.shadow_offset_x - spread,
-                origin_y + settings.shadow_offset_y - spread,
-                image.width() + border * 2 + spread * 2,
-                image.height() + border * 2 + spread * 2,
+            shadow_alpha = min(
+                255,
+                int(shadow_opacity * 3.2)
             )
 
-            outer.clear()
-
-            if radius <= 0:
-                outer.addRect(rect)
-            else:
-                outer.addRoundedRect(
-                    rect,
-                    radius + border + spread,
-                    radius + border + spread,
-                )
-
-            inner.clear()
-
-            inner_rect = QRectF(
-                origin_x + settings.shadow_offset_x,
-                origin_y + settings.shadow_offset_y,
-                image.width() + border * 2,
-                image.height() + border * 2,
+            fill = ImageProcessor.hex_to_rgba(
+                shadow_color,
+                shadow_alpha,
             )
 
             if radius <= 0:
-                inner.addRect(inner_rect)
+                draw.rectangle(shadow_rect, fill=fill)
             else:
-                inner.addRoundedRect(
-                    inner_rect,
-                    radius + border,
-                    radius + border,
+                draw.rounded_rectangle(
+                    shadow_rect,
+                    radius=r,
+                    fill=fill,
                 )
 
-            painter.fillPath(
-                outer.subtracted(inner),
-                color,
+            shadow_layer = shadow_layer.filter(
+                ImageFilter.GaussianBlur(
+                    radius=shadow_blur * s
+                )
             )
+
+            canvas.alpha_composite(shadow_layer)
+            canvas.alpha_composite(shadow_layer)
+
+        # ---------- Border ----------
+        if border > 0:
+            draw = ImageDraw.Draw(canvas)
+
+            border_rect = [
+                int(round(left * s)),
+                int(round(top * s)),
+                int(round((left + w + border * 2) * s)),
+                int(round((top + h + border * 2) * s)),
+            ]
+
+            r = int(round((radius + border) * s))
+
+            if radius <= 0:
+                draw.rectangle(
+                    border_rect,
+                    fill=ImageProcessor.color_to_rgba(border_color),
+                )
+            else:
+                draw.rounded_rectangle(
+                    border_rect,
+                    radius=r,
+                    fill=ImageProcessor.color_to_rgba(border_color),
+                )
+
+        # ---------- Image ----------
+        image_x = int(round((left + border) * s))
+        image_y = int(round((top + border) * s))
+
+        scaled_image = pil_image.resize(
+            (w * s, h * s),
+            Image.Resampling.LANCZOS,
+        )
+
+        if radius > 0:
+            mask = Image.new(
+                "L",
+                (w * s, h * s),
+                0,
+            )
+
+            mask_draw = ImageDraw.Draw(mask)
+
+            mask_draw.rounded_rectangle(
+                [0, 0, w * s, h * s],
+                radius=int(round(radius * s)),
+                fill=255,
+            )
+
+            canvas.paste(
+                scaled_image,
+                (image_x, image_y),
+                mask,
+            )
+        else:
+            canvas.alpha_composite(
+                scaled_image,
+                (image_x, image_y),
+            )
+
+        canvas = canvas.resize(
+            (out_w, out_h),
+            Image.Resampling.LANCZOS,
+        )
+
+        return ImageProcessor.pil_to_qimage(canvas)
 
     @staticmethod
-    def draw_border(
-        painter,
-        image,
-        border,
-        radius,
-        settings,
-        origin_x,
-        origin_y,
-    ):
-        if border <= 0:
-            return
+    def qimage_to_pil(image: QImage) -> Image.Image:
+        ba = QByteArray()
+        buffer = QBuffer(ba)
+        buffer.open(QIODevice.WriteOnly)
+        image.save(buffer, "PNG")
 
-        x = round(origin_x * 2) / 2
-        y = round(origin_y * 2) / 2
-
-        w = round((image.width() + border * 2) * 2) / 2
-        h = round((image.height() + border * 2) * 2) / 2
-
-        border_rect = QRectF(
-            x,
-            y,
-            w,
-            h,
-        )
-        path = QPainterPath()
-
-        if radius <= 0:
-            path.addRect(border_rect)
-        else:
-            path.addRoundedRect(
-                border_rect,
-                radius + border,
-                radius + border,
-            )
-
-        painter.fillPath(
-            path,
-            QColor(settings.border_color),
-        )
+        return Image.open(
+            BytesIO(bytes(ba))
+        ).convert("RGBA")
 
     @staticmethod
-    def draw_image(
-        painter,
-        image,
-        border,
-        radius,
-        origin_x,
-        origin_y,
-    ):
+    def pil_to_qimage(image: Image.Image) -> QImage:
+        bio = BytesIO()
+        image.save(bio, format="PNG")
 
-        image_rect = QRectF(
-            origin_x + border,
-            origin_y + border,
-            image.width(),
-            image.height(),
-        )
+        qimage = QImage()
+        qimage.loadFromData(bio.getvalue(), "PNG")
 
-        clip = QPainterPath()
+        return qimage
 
-        if radius <= 0:
-            clip.addRect(image_rect)
-        else:
-            clip.addRoundedRect(
-                image_rect,
-                radius,
-                radius,
-            )
+    @staticmethod
+    def color_to_rgba(color: str):
+        if not color:
+            color = "#000000"
 
-        painter.save()
+        c = color.strip()
 
-        painter.setClipPath(clip)
+        if c.lower() == "black":
+            return (0, 0, 0, 255)
 
-        painter.drawImage(
-            image_rect,
-            image,
-        )
+        if c.lower() == "white":
+            return (255, 255, 255, 255)
 
-        painter.restore()
+        if c.startswith("#"):
+            c = c[1:]
+
+        if len(c) == 6:
+            r = int(c[0:2], 16)
+            g = int(c[2:4], 16)
+            b = int(c[4:6], 16)
+            return (r, g, b, 255)
+
+        return (0, 0, 0, 255)
+
+    @staticmethod
+    def hex_to_rgba(color: str, alpha: int):
+        r, g, b, _ = ImageProcessor.color_to_rgba(color)
+        return (r, g, b, alpha)
