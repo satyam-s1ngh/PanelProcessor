@@ -295,7 +295,10 @@ class MainWindow(QMainWindow):
         self.left_panel.progress.setValue(0)
 
         for index, image_path in enumerate(self.images, start=1):
-            output_path = Path(output_folder) / image_path.name
+            output_path = self.get_output_path(
+                output_folder,
+                image_path,
+            )
 
             Pipeline.process_one(
                 image_path,
@@ -336,7 +339,10 @@ class MainWindow(QMainWindow):
             return
 
         image_path = self.images[self.current_index]
-        output_path = Path(output_folder) / image_path.name
+        output_path = self.get_output_path(
+            output_folder,
+            image_path,
+        )
 
         Pipeline.process_one(
             image_path,
@@ -484,3 +490,19 @@ class MainWindow(QMainWindow):
         self.settings.save()
 
         self.refresh_preview()
+
+    def get_output_path(self, output_folder, image_path):
+        output_folder = Path(output_folder)
+
+        base_name = image_path.stem
+        extension = image_path.suffix
+
+        output_path = output_folder / f"{base_name}_processed{extension}"
+
+        counter = 1
+
+        while output_path.exists():
+            output_path = output_folder / f"{base_name}_processed_{counter}{extension}"
+            counter += 1
+
+        return output_path
