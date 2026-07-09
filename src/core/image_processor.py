@@ -33,7 +33,9 @@ class ImageProcessor:
         pil_image = ImageProcessor.qimage_to_pil(image)
         w, h = pil_image.size
 
-        margin = shadow_blur * 3 + 4 if shadow_enabled else 0
+        shadow_spread = int(shadow_blur * 0.9) if shadow_enabled else 0
+
+        margin = shadow_blur * 3 + shadow_spread + 4 if shadow_enabled else 0
 
         left = margin + max(0, -shadow_offset_x)
         right = margin + max(0, shadow_offset_x)
@@ -60,13 +62,13 @@ class ImageProcessor:
 
         # ---------- Shadow ----------
         if shadow_enabled and shadow_opacity > 0 and shadow_blur > 0:
-            shadow_layer = Image.new(
-                "RGBA",
-                canvas.size,
-                (0, 0, 0, 0),
+            shadow_mask = Image.new(
+                "L",
+                (out_w * s, out_h * s),
+                0,
             )
 
-            draw = ImageDraw.Draw(shadow_layer)
+            mask_draw = ImageDraw.Draw(shadow_mask)
 
             shadow_rect = [
                 int(round((left + shadow_offset_x) * s)),
@@ -75,36 +77,32 @@ class ImageProcessor:
                 int(round((top + shadow_offset_y + h + border * 2) * s)),
             ]
 
-            r = int(round((radius + border) * s))
-
-            shadow_alpha = min(
-                255,
-                int(shadow_opacity * 3.2)
-            )
-
-            fill = ImageProcessor.hex_to_rgba(
-                shadow_color,
-                shadow_alpha,
-            )
-
             if radius <= 0:
-                draw.rectangle(shadow_rect, fill=fill)
-            else:
-                draw.rounded_rectangle(
+                mask_draw.rectangle(
                     shadow_rect,
-                    radius=r,
-                    fill=fill,
+                    fill=shadow_opacity,
                 )
+            else:
+                shadow_radius = int(round((radius + border) * s))
 
-            shadow_layer = shadow_layer.filter(
-                ImageFilter.GaussianBlur(
-                    radius=shadow_blur * s
+                mask_draw.rounded_rectangle(
+                    shadow_rect,
+                    radius=shadow_radius,
+                    fill=shadow_opacity,
                 )
+            shadow_mask = shadow_mask.filter(
+                ImageFilter.GaussianBlur(radius=shadow_blur * s)
             )
 
-            canvas.alpha_composite(shadow_layer)
-            canvas.alpha_composite(shadow_layer)
+            shadow_rgba = Image.new(
+                "RGBA",
+                (out_w * s, out_h * s),
+                ImageProcessor.color_to_rgba(shadow_color),
+            )
+            shadow_rgba.putalpha(shadow_mask)
 
+            canvas.alpha_composite(shadow_rgba)
+            
         # ---------- Border ----------
         if border > 0:
             draw = ImageDraw.Draw(canvas)
@@ -116,18 +114,20 @@ class ImageProcessor:
                 int(round((top + h + border * 2) * s)),
             ]
 
-            r = int(round((radius + border) * s))
+            border_fill = ImageProcessor.color_to_rgba(border_color)
 
             if radius <= 0:
                 draw.rectangle(
                     border_rect,
-                    fill=ImageProcessor.color_to_rgba(border_color),
+                    fill=border_fill,
                 )
             else:
+                border_radius = int(round((radius + border) * s))
+
                 draw.rounded_rectangle(
                     border_rect,
-                    radius=r,
-                    fill=ImageProcessor.color_to_rgba(border_color),
+                    radius=border_radius,
+                    fill=border_fill,
                 )
 
         # ---------- Image ----------

@@ -16,12 +16,14 @@ from PySide6.QtWidgets import (
 
 from ui.left_panel import LeftPanel
 from ui.preview_panel import PreviewPanel
+from PySide6.QtGui import QColor
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         
         self.settings = Settings()
+        self.settings.load()
         self.images = []
         self.current_index = 0
 
@@ -69,13 +71,19 @@ class MainWindow(QMainWindow):
         )
         self.left_panel.output_button.clicked.connect(self.select_output_folder)
 
-        self.settings_panel.border_spinbox.valueChanged.connect(self.update_border_value)
+        self.settings_panel.border_spinbox.valueChanged.connect(
+            self.update_border_value
+        )
         self.left_panel.process_button.clicked.connect(
             self.process_images
         )
 
         self.settings_panel.custom_color_button.clicked.connect(
             self.choose_border_color
+        )
+
+        self.settings_panel.border_color.currentTextChanged.connect(
+            self.update_border_color
         )
 
         self.settings_panel.corner_radius.valueChanged.connect(
@@ -105,6 +113,8 @@ class MainWindow(QMainWindow):
         self.settings_panel.shadow_opacity.valueChanged.connect(
             self.update_shadow_opacity
         )
+
+        self.apply_settings_to_ui()
                         
     def select_input_folder(self):
         folder = QFileDialog.getExistingDirectory(
@@ -162,12 +172,7 @@ class MainWindow(QMainWindow):
             self.update_preview()
 
     def update_border_value(self, value):
-        self.settings.border_thickness = value
-
-        self.settings_panel.border_color.currentTextChanged.connect(
-        self.update_border_color
-        )
-
+        self.settings.border_thickness = float(value)
         self.preview_panel.canvas.set_settings(self.settings)
         self.preview_panel.canvas.update()
 
@@ -220,17 +225,12 @@ class MainWindow(QMainWindow):
 
         self.settings.border_color = color.name()
 
-        self.settings_panel.custom_color_button.setText(
-            f"Border Color: {color.name().upper()}"
+        self.update_color_button(
+            self.settings_panel.custom_color_button,
+            "Border Color",
+            color.name(),
         )
 
-        self.settings_panel.custom_color_button.setStyleSheet(
-            f"""
-            QPushButton {{
-                background-color: {color.name()};
-            }}
-            """
-        )
         self.preview_panel.canvas.update()
 
     def update_border_color(self, color):
@@ -253,16 +253,10 @@ class MainWindow(QMainWindow):
 
         self.settings.shadow_color = color.name()
 
-        self.settings_panel.shadow_color_button.setText(
-            f"Shadow Color: {color.name().upper()}"
-        )
-
-        self.settings_panel.shadow_color_button.setStyleSheet(
-            f"""
-            QPushButton {{
-                background-color: {color.name()};
-            }}
-            """
+        self.update_color_button(
+            self.settings_panel.shadow_color_button,
+            "Shadow Color",
+            color.name(),
         )
 
         self.preview_panel.canvas.update()    
@@ -291,7 +285,6 @@ class MainWindow(QMainWindow):
         self.settings.background_enabled = enabled
         self.preview_panel.canvas.update()
 
-
     def choose_background_color(self):
         color = QColorDialog.getColor()
 
@@ -300,16 +293,139 @@ class MainWindow(QMainWindow):
 
         self.settings.background_color = color.name()
 
-        self.settings_panel.background_color_button.setText(
-            f"Background Color: {color.name().upper()}"
-        )
-
-        self.settings_panel.background_color_button.setStyleSheet(
-            f"""
-            QPushButton {{
-                background-color: {color.name()};
-            }}
-            """
+        self.update_color_button(
+            self.settings_panel.background_color_button,
+            "Background Color",
+            color.name(),
         )
 
         self.preview_panel.canvas.update()
+
+    def closeEvent(self, event):
+        self.settings.save()
+        event.accept()
+    
+    def apply_settings_to_ui(self):
+        panel = self.settings_panel
+
+        widgets = [
+            panel.border_spinbox,
+            panel.border_color,
+            panel.custom_color_button,
+            panel.corner_radius,
+            panel.shadow_checkbox,
+            panel.shadow_blur,
+            panel.shadow_offset_x,
+            panel.shadow_offset_y,
+            panel.shadow_opacity,
+        ]
+
+        if hasattr(panel, "shadow_color_button"):
+            widgets.append(panel.shadow_color_button)
+
+        if hasattr(panel, "background_checkbox"):
+            widgets.append(panel.background_checkbox)
+
+        if hasattr(panel, "background_color_button"):
+            widgets.append(panel.background_color_button)
+
+        for widget in widgets:
+            widget.blockSignals(True)
+
+        try:
+            panel.border_spinbox.set_border_value(
+                float(self.settings.border_thickness)
+            )
+
+            border_color = str(self.settings.border_color)
+
+            if border_color.lower() == "black":
+                panel.border_color.setCurrentText("Black")
+            elif border_color.lower() == "white":
+                panel.border_color.setCurrentText("White")
+            else:
+                panel.border_color.setCurrentText("Custom")
+
+            self.update_color_button(
+                panel.custom_color_button,
+                "Border Color",
+                self.settings.border_color,
+            )
+
+            panel.corner_radius.setValue(
+                int(self.settings.corner_radius)
+            )
+
+            panel.shadow_checkbox.setChecked(
+                bool(self.settings.shadow_enabled)
+            )
+
+            panel.shadow_blur.setValue(
+                int(self.settings.shadow_blur)
+            )
+
+            panel.shadow_offset_x.setValue(
+                int(self.settings.shadow_offset_x)
+            )
+
+            panel.shadow_offset_y.setValue(
+                int(self.settings.shadow_offset_y)
+            )
+
+            panel.shadow_opacity.setValue(
+                int(self.settings.shadow_opacity)
+            )
+
+            if hasattr(panel, "shadow_color_button"):
+                self.update_color_button(
+                    panel.shadow_color_button,
+                    "Shadow Color",
+                    self.settings.shadow_color,
+                )
+
+            if hasattr(panel, "background_checkbox"):
+                panel.background_checkbox.setChecked(
+                    bool(self.settings.background_enabled)
+                )
+
+            if hasattr(panel, "background_color_button"):
+                self.update_color_button(
+                    panel.background_color_button,
+                    "Background Color",
+                    self.settings.background_color,
+                )
+
+        finally:
+            for widget in widgets:
+                widget.blockSignals(False)
+
+        self.preview_panel.canvas.update()
+
+    def update_color_button(self, button, label, color_value):
+        color = QColor(str(color_value))
+
+        if not color.isValid():
+            color = QColor("#000000")
+
+        hex_color = color.name().upper()
+
+        brightness = (
+            color.red() * 0.299
+            + color.green() * 0.587
+            + color.blue() * 0.114
+        )
+
+        text_color = "#000000" if brightness > 160 else "#FFFFFF"
+
+        button.setText(
+            f"{label}: {hex_color}"
+        )
+
+        button.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: {hex_color};
+                color: {text_color};
+            }}
+            """
+        )
